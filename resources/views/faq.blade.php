@@ -1,4 +1,4 @@
-<x-layouts.guest title="Tax Knowledge Base & FAQs - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Tax Guides & FAQs" title="Tax Knowledge Base & FAQs - TaxFiler.pk">
     <div class="max-w-5xl mx-auto space-y-10 py-4" x-data="{ activeCategory: 'all', openFaq: 1 }">
         <!-- Header -->
         <div class="text-center space-y-3">
@@ -135,4 +135,4 @@
             </div>
         </div>
     </div>
-</x-layouts.guest>
+</x-dynamic-component>

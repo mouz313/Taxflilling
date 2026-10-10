@@ -35,6 +35,21 @@
                     <span class="mr-1">🧮</span> Filing Wizard
                 </a>
 
+                @if(auth()->user()->isCompany())
+                    @if($return->fee_status === 'paid')
+                        <span class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-800">
+                            ✓ Fee Paid (PKR {{ number_format($return->fee_amount, 0) }})
+                        </span>
+                    @else
+                        <form method="POST" action="{{ route('returns.confirm-fee', $return) }}" class="inline">
+                            @csrf
+                            <button type="submit" class="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition">
+                                ✓ Confirm Fee (PKR {{ number_format($return->fee_amount, 0) }})
+                            </button>
+                        </form>
+                    @endif
+                @endif
+
                 @if(! $return->is_locked)
                     @if($return->status === 'draft')
                         <form method="POST" action="{{ route('returns.status', $return) }}">

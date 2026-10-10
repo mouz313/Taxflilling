@@ -15,12 +15,7 @@ class PdfDossierController extends Controller
      */
     public function generateReturnDossier(Request $request, TaxReturn $return)
     {
-        $user = $request->user();
-
-        // Authorization: Client owner or company/consultant
-        if ($user->isClient() && $return->client_id !== $user->client?->id) {
-            abort(403, 'Unauthorized access to Tax Dossier.');
-        }
+        \Illuminate\Support\Facades\Gate::authorize('view', $return);
 
         $return->load([
             'client',

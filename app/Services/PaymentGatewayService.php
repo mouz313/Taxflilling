@@ -44,9 +44,9 @@ class PaymentGatewayService
         $txnRefNo = 'T' . date('YmdHis') . rand(10, 99);
         $amountInPaisa = (int) ($amount * 100);
 
-        $merchantId = env('JAZZCASH_MERCHANT_ID', 'MC' . rand(10000, 99999));
-        $password = env('JAZZCASH_PASSWORD', 'pass_' . rand(1000, 9999));
-        $integritySalt = env('JAZZCASH_SALT', 'salt_secret_key');
+        $merchantId = config('services.jazzcash.merchant_id') ?: env('JAZZCASH_MERCHANT_ID', 'MC_SANDBOX');
+        $password = config('services.jazzcash.password') ?: env('JAZZCASH_PASSWORD', 'pass_sandbox');
+        $integritySalt = config('services.jazzcash.salt') ?: env('JAZZCASH_SALT', 'taxfiler_secure_salt');
 
         $postData = [
             'pp_Version' => '1.1',
@@ -90,6 +90,32 @@ class PaymentGatewayService
     }
 
     /**
+     * Cryptographically verify JazzCash HMAC-SHA256 signature
+     */
+    public function verifyJazzCashHash(array $input): bool
+    {
+        $received = $input['pp_SecureHash'] ?? '';
+        if (empty($received)) {
+            return false;
+        }
+
+        unset($input['pp_SecureHash']);
+        ksort($input);
+
+        $salt = config('services.jazzcash.salt') ?: env('JAZZCASH_SALT', 'taxfiler_secure_salt');
+        $hashString = $salt;
+        foreach ($input as $key => $val) {
+            if ($val !== '' && str_starts_with($key, 'pp_')) {
+                $hashString .= '&' . $val;
+            }
+        }
+
+        $calculated = strtoupper(hash_hmac('sha256', $hashString, $salt));
+
+        return hash_equals($calculated, strtoupper($received));
+    }
+
+    /**
      * EasyPaisa Merchant Gateway Payload
      */
     public function createEasyPaisaCheckout(ServiceRequest|TaxReturn $model, string $mobileNumber = ''): array
@@ -117,13 +143,20 @@ class PaymentGatewayService
         $amount = (float) ($model->fee_amount ?? $model->net_tax_payable_or_refundable ?? 2500);
         $refCode = 'TX-' . ($model->tracking_number ?? str_pad($model->id, 6, '0', STR_PAD_LEFT));
 
+        $consultancy = \App\Models\Consultancy::first();
+        $bankName = config('services.bank.name', 'Meezan Bank Limited (Islamic Banking)');
+        $accountTitle = $consultancy?->name ?? 'TaxFiler Advisory & Corporate Practice';
+        $accountNo = config('services.bank.account_number', '02010108920192');
+        $iban = config('services.bank.iban', 'PK42MEZN0002010108920192');
+        $raastId = $consultancy?->phone ?? config('services.bank.raast_id', '03001234567');
+
         return [
             'gateway' => 'bank_transfer',
-            'bank_name' => 'Meezan Bank Limited (Islamic Banking)',
-            'account_title' => 'TaxFiler Advisory & Corporate Practice',
-            'account_number' => '02010108920192',
-            'iban' => 'PK42MEZN0002010108920192',
-            'raast_id' => '03001234567',
+            'bank_name' => $bankName,
+            'account_title' => $accountTitle,
+            'account_number' => $accountNo,
+            'iban' => $iban,
+            'raast_id' => $raastId,
             'amount' => $amount,
             'formatted_amount' => 'PKR ' . number_format($amount, 0),
             'reference_code' => $refCode,

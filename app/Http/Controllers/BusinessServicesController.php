@@ -194,30 +194,47 @@ class BusinessServicesController extends Controller
     }
 
     /**
-     * Process Digital Fee Payment for Service Request (1Link 1Bill / JazzCash / EasyPaisa / IBFT)
+     * Submit Bank / Mobile Wallet Payment Reference Proof (Pending Consultant Verification)
      */
-    public function processPayment(Request $request, ServiceRequest $serviceRequest)
+    public function submitProof(Request $request, ServiceRequest $serviceRequest)
     {
         $validated = $request->validate([
             'payment_method' => ['required', 'in:1bill,jazzcash,easypaisa,bank_transfer'],
-            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'payment_reference' => ['required', 'string', 'max:255'],
         ]);
 
-        $ref = !empty($validated['payment_reference']) ? $validated['payment_reference'] : match ($validated['payment_method']) {
-            '1bill' => '1BILL-' . rand(10000000, 99999999),
-            'jazzcash' => 'JC-' . date('Ymd') . '-' . rand(1000, 9999),
-            'easypaisa' => 'EP-' . date('Ymd') . '-' . rand(1000, 9999),
-            default => 'IBFT-' . strtoupper(\Illuminate\Support\Str::random(8)),
-        };
-
         $serviceRequest->update([
-            'payment_status' => 'paid',
+            'payment_status' => 'pending_verification',
             'payment_method' => $validated['payment_method'],
-            'payment_reference' => $ref,
+            'payment_reference' => $validated['payment_reference'],
             'status' => $serviceRequest->status === 'submitted' ? 'in_review' : $serviceRequest->status,
         ]);
 
-        return back()->with('success', "Payment PKR " . number_format($serviceRequest->fee_amount, 0) . " kamiyabi se confirm ho gayi! Transaction Ref: {$ref}");
+        return back()->with('success', "Payment reference {$validated['payment_reference']} jama ho chuka hai. Hamari team verify kar ke order ko Paid mark kar degi.");
+    }
+
+    /**
+     * Mark Order as Paid (Strictly Authorized for Company Staff)
+     */
+    public function markPaid(Request $request, ServiceRequest $serviceRequest)
+    {
+        if (! auth()->user() || ! auth()->user()->isCompany()) {
+            abort(403, 'Sirf authorized company staff payment ko mark paid kar sakta hai.');
+        }
+
+        $validated = $request->validate([
+            'payment_method' => ['nullable', 'string', 'max:50'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $serviceRequest->update([
+            'payment_status' => 'paid',
+            'payment_method' => $validated['payment_method'] ?? ($serviceRequest->payment_method ?? 'manual_consultant'),
+            'payment_reference' => $validated['payment_reference'] ?? ($serviceRequest->payment_reference ?? ('VERIFIED-' . strtoupper(\Illuminate\Support\Str::random(8)))),
+            'status' => in_array($serviceRequest->status, ['submitted', 'draft']) ? 'in_review' : $serviceRequest->status,
+        ]);
+
+        return back()->with('success', "Order #{$serviceRequest->tracking_number} kamiyabi se Paid mark ho chuka hai!");
     }
 
     /**
@@ -290,5 +307,22 @@ class BusinessServicesController extends Controller
             'filer_benefit' => $atl['filer_benefit'] ?? null,
             'exists_in_system' => (bool) $client,
         ]);
+    }
+
+    /**
+     * Dedicated Client Portal: My Corporate Applications & Orders
+     */
+    public function clientApplications(Request $request)
+    {
+        $user = $request->user();
+
+        $services = ServiceRequest::where(function ($q) use ($user) {
+            $q->where('user_id', $user->id)
+              ->orWhere('applicant_email', $user->email);
+        })
+        ->orderByDesc('id')
+        ->get();
+
+        return view('client.applications.index', compact('services', 'user'));
     }
 }

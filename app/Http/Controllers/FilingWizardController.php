@@ -12,10 +12,7 @@ class FilingWizardController extends Controller
      */
     public function show(Request $request, TaxReturn $return)
     {
-        // Ensure client can only view their own return
-        if (auth()->user()->isClient() && $return->client_id !== auth()->user()->client?->id) {
-            abort(403, 'Unauthorized access.');
-        }
+        \Illuminate\Support\Facades\Gate::authorize('view', $return);
 
         $step = (int) $request->input('step', 1);
         if ($step < 1) $step = 1;
@@ -39,6 +36,8 @@ class FilingWizardController extends Controller
      */
     public function saveStep(Request $request, TaxReturn $return, int $step)
     {
+        \Illuminate\Support\Facades\Gate::authorize('update', $return);
+
         if ($return->is_locked) {
             return back()->with('error', 'Return already filed & locked.');
         }
@@ -160,31 +159,37 @@ class FilingWizardController extends Controller
                 $return->recalculateTotals();
                 break;
 
-            // Step 10: FBR PIN & Password (Consent)
+            // Step 10: FBR Filing Authorization (Consent)
             case 10:
-                if ($request->filled('fbr_password')) {
-                    $notes = "Client FBR Credentials provided. Password: " . $request->input('fbr_password') . " | PIN: " . $request->input('fbr_pin');
-                    $return->update(['internal_notes' => $notes]);
+                if ($request->boolean('consent_consultant_files')) {
+                    $return->statusLogs()->create([
+                        'from_status' => $return->status,
+                        'to_status' => $return->status,
+                        'changed_by_user_id' => auth()->id(),
+                        'notes' => 'Client ne consultant ko apni taraf se file karne ki ijazat di.',
+                    ]);
                 }
                 break;
 
             // Step 12: Pay Now & Submit Return
             case 12:
-                $tid = $request->input('transaction_reference', 'TID-' . strtoupper(uniqid()));
+                $tid = $request->input('transaction_reference', 'N/A');
                 $method = $request->input('payment_method', 'bank_transfer');
+
+                // fee_status pending hi rahe jab tak company ya verified gateway confirm na kare
                 $return->update([
                     'status' => 'in_review',
-                    'fee_status' => 'paid',
                 ]);
+
                 $return->statusLogs()->create([
                     'from_status' => 'draft',
                     'to_status' => 'in_review',
                     'changed_by_user_id' => auth()->id(),
-                    'notes' => "Client completed 12-Step filing wizard and paid fee (Rs. 3,000) via {$method}. Ref: {$tid}",
+                    'notes' => "Client ne return submit kiya. Payment ({$method}) ref: {$tid} (unverified, company confirm karegi).",
                 ]);
 
                 return redirect()->route('dashboard')
-                    ->with('success', 'Mubarak ho! Aapka tax return submit ho gaya hai. Humara consultant verify karke IRIS par file kar dega.');
+                    ->with('success', 'Mubarak ho! Aapka tax return submit ho gaya hai. Consultant fee aur documents verify kar ke IRIS par file kar dega.');
         }
 
         $nextStep = $step + 1;

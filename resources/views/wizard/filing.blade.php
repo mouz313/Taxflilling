@@ -1,5 +1,5 @@
 <x-layouts.app :header="'TaxFiler Return Wizard: Step ' . $step . ' of 12'">
-    <div class="max-w-2xl mx-auto space-y-6" x-data="{
+    <div class="max-w-7xl mx-auto space-y-6" x-data="{
         wizardLang: 'ur',
         salaryFreq: 'annual',
         inputSalary: {{ $return->incomeItems->where('source_type', 'salary')->first()?->gross_amount ?? 1800000 }},
@@ -81,10 +81,11 @@
             <x-ui.stepper :steps="$wizardPhases" :current="$currentPhase" />
         </div>
 
-        <!-- Step Container Card -->
-        <div class="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-            <form method="POST" action="{{ route('wizard.filing.save', ['return' => $return, 'step' => $step]) }}">
-                @csrf
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <!-- Main Form Card (Col 8) -->
+            <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-2xs">
+                <form method="POST" action="{{ route('wizard.filing.save', ['return' => $return, 'step' => $step]) }}">
+                    @csrf
 
                 <!-- STEP 1: DISCLAIMER -->
                 @if($step === 1)
@@ -441,50 +442,25 @@
                         </div>
                     </div>
 
-                <!-- STEP 10: FBR PIN & PASSWORD -->
+                <!-- STEP 10: FBR FILING AUTHORIZATION & CONSENT -->
                 @elseif($step === 10)
                     <div class="space-y-4">
                         <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mb-4">
-                            🔐
+                            ✍️
                         </div>
-                        <h2 class="text-lg font-semibold text-slate-800">FBR IRIS Login Credentials</h2>
-                        <p class="text-xs text-slate-500">Kia aapko apna FBR IRIS password aur 4-digit PIN yaad hai?</p>
+                        <h2 class="text-lg font-semibold text-slate-800">Filing Authorization & Consent</h2>
+                        <p class="text-xs text-slate-500">Hamare certified tax consultant ko apni taraf se FBR IRIS par return file karne ki ijazat dein.</p>
 
-                        <div class="space-y-2 pt-2">
-                            <label
-                                @click="hasFbrCreds = true"
-                                :class="hasFbrCreds ? 'border-blue-600 bg-blue-50/60' : 'border-slate-200'"
-                                class="p-3 rounded-lg border flex items-center space-x-3 cursor-pointer text-xs select-none"
-                            >
-                                <input type="radio" :checked="hasFbrCreds" class="text-blue-600">
-                                <div>
-                                    <strong class="text-slate-900">Haan, mujhe FBR Password / PIN maloom hai</strong>
-                                    <span class="block text-[11px] text-slate-500">Niche diye gaye box mein darj karein</span>
-                                </div>
+                        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                            <label class="flex items-start space-x-3 cursor-pointer text-xs select-none">
+                                <input type="checkbox" name="consent_consultant_files" value="1" required checked class="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                <span class="text-slate-700 leading-relaxed">
+                                    Main tasdeeq karta hoon ke di gayi aamdani aur asason ki maloomat durust hain aur main consultant ko FBR IRIS portal par yeh return file karne ki ijazat deta hoon.
+                                </span>
                             </label>
-
-                            <label
-                                @click="hasFbrCreds = false"
-                                :class="!hasFbrCreds ? 'border-blue-600 bg-blue-50/60' : 'border-slate-200'"
-                                class="p-3 rounded-lg border flex items-center space-x-3 cursor-pointer text-xs select-none"
-                            >
-                                <input type="radio" :checked="!hasFbrCreds" class="text-blue-600">
-                                <div>
-                                    <strong class="text-slate-900">Nahi, main bhool gaya hoon / Pehli dafa bana raha hoon</strong>
-                                    <span class="block text-[11px] text-blue-700">Hamara consultant aapke mobile OTP se free of charge reset kar lega.</span>
-                                </div>
-                            </label>
-                        </div>
-
-                        <div x-show="hasFbrCreds" x-transition class="space-y-3 pt-2">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-700 mb-1">IRIS Password</label>
-                                <input type="password" name="fbr_password" placeholder="••••••••" class="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 outline-none focus:border-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-700 mb-1">4-Digit FBR PIN</label>
-                                <input type="text" name="fbr_pin" placeholder="1234" maxlength="4" class="w-full px-3.5 py-2.5 text-xs rounded-lg border border-slate-300 outline-none font-mono focus:border-blue-500" />
-                            </div>
+                            <p class="text-[11px] text-slate-400">
+                                Security note: Hamara platform aapka FBR password ya PIN save nahi karta. Agar verification OTP ki zaroorat hui to consultant aap se WhatsApp par rabta karega.
+                            </p>
                         </div>
                     </div>
 
@@ -602,5 +578,88 @@
                 </div>
             </form>
         </div>
+
+        <!-- Sticky Summary & Support Sidebar (Col 4) -->
+        <div class="lg:col-span-4 space-y-5">
+            <!-- Return Dossier Summary Card -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800">Return Overview</h3>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 uppercase font-mono">
+                        Step {{ $step }} / 12
+                    </span>
+                </div>
+
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Tax Year:</span>
+                        <span class="font-bold text-slate-900">{{ $return->taxYear?->name }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Taxpayer:</span>
+                        <span class="font-medium text-slate-900 truncate max-w-[150px]">{{ $return->client?->name }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>CNIC:</span>
+                        <span class="font-mono text-slate-800">{{ $return->client?->masked_cnic }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Estimated Income Tax:</span>
+                        <span class="font-bold font-mono text-blue-700" x-text="'PKR ' + computeLiveTax().toLocaleString()">PKR 0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Advocate Filing Fee:</span>
+                        <span class="font-semibold text-slate-900 font-mono">PKR {{ number_format($return->fee_amount, 0) }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Fee Status:</span>
+                        <span class="font-bold {{ $return->fee_status === 'paid' ? 'text-emerald-700' : 'text-amber-700' }}">
+                            {{ $return->fee_status === 'paid' ? '✓ Paid' : '⏳ Pending' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+                    🔒 <strong>FBR IRIS Compliance:</strong> Aapka data 256-bit encrypted hai aur verified advocate ke review ke baad jama kiya jayega.
+                </div>
+            </div>
+
+            <!-- Dedicated Advocate Assistance Card -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white border border-slate-800 shadow-2xs space-y-3">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-xl">⚖️</span>
+                    <div>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-200">Legal Consultation</h4>
+                        <p class="text-[11px] text-slate-400">High Court & FBR Certified</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Agar kisi step mein dushwari pesh aa rahi ho to foran apne tax advocate se rabta karein.
+                </p>
+                <a href="https://wa.me/923001234567?text=Assalam%20o%20Alaikum,%20mujhe%20Return%20Step%20{{ $step }}%20mein%20rehnumai%20chahiye."
+                   target="_blank"
+                   class="inline-flex w-full items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#25D366] text-slate-950 hover:bg-[#1ebd59] transition shadow-2xs cursor-pointer">
+                    <span>💬 Chat on WhatsApp</span>
+                </a>
+            </div>
+
+            <!-- Safe Return & Discard Actions -->
+            <div class="p-4 bg-white rounded-2xl border border-slate-200 text-xs space-y-2.5 shadow-2xs">
+                <a href="{{ route('dashboard') }}" class="block text-center font-semibold text-slate-600 hover:text-slate-900 py-1 transition">
+                    &larr; Save &amp; Return to Dashboard
+                </a>
+
+                @if($return->status === 'draft')
+                    <form method="POST" action="{{ route('client.returns.destroy', $return) }}" onsubmit="return confirm('Kya aap is draft return application ko delete karna chahte hain?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="w-full text-center text-rose-600 hover:text-rose-700 font-semibold py-1 text-xs transition cursor-pointer">
+                            🗑️ Discard &amp; Delete Draft
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </div>
     </div>
+</div>
 </x-layouts.app>

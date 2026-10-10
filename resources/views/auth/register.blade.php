@@ -76,17 +76,21 @@
                     @enderror
                 </div>
 
-                <!-- CNIC (Mask optional) -->
+                <!-- CNIC -->
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">CNIC (Optional)</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">CNIC Number *</label>
                     <input
                         type="text"
                         name="cnic"
                         value="{{ old('cnic') }}"
+                        required
                         maxlength="15"
                         placeholder="42101-1234567-1"
-                        class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-mono text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
+                        class="w-full rounded-lg border {{ $errors->has('cnic') ? 'border-red-500' : 'border-slate-300' }} px-3 py-2.5 text-sm font-mono text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
                     />
+                    @error('cnic')
+                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <!-- Password -->
@@ -97,7 +101,7 @@
                             :type="showPass ? 'text' : 'password'"
                             name="password"
                             required
-                            placeholder="Min 6 characters"
+                            placeholder="Min 8 characters"
                             class="w-full rounded-lg border {{ $errors->has('password') ? 'border-red-500' : 'border-slate-300' }} px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
                         />
                     </div>

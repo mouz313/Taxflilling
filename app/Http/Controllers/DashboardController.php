@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\CallbackRequest;
-use App\Models\Client;
+use App\Models\Consultancy;
 use App\Models\ServiceRequest;
 use App\Models\TaxReturn;
+use App\Models\TaxYear;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
@@ -14,69 +17,230 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        if ($user->isCompany()) {
-            $totalClients = Client::count();
-            $totalReturns = TaxReturn::count();
-            $inReviewReturns = TaxReturn::where('status', 'in_review')->count();
-            $readyToFile = TaxReturn::where('status', 'ready_to_file')->count();
-            $filedReturns = TaxReturn::where('status', 'filed')->count();
-            $draftReturns = TaxReturn::where('status', 'draft')->count();
+        return $user->isCompany()
+            ? $this->company($request, $user)
+            : $this->client($user);
+    }
 
-            // Financial Metrics
-            $totalTaxableVolume = TaxReturn::sum('taxable_income');
-            $returnsRevenue = TaxReturn::whereIn('status', ['filed', 'ready_to_file'])->sum('fee_amount');
-            $servicesRevenue = ServiceRequest::where('payment_status', 'paid')->sum('fee_amount');
-            $totalRevenue = $returnsRevenue + $servicesRevenue;
+    private function company(Request $request, User $user)
+    {
+        $consultancy = $user->consultancy ?? Consultancy::first();
 
-            $recentReturns = TaxReturn::with(['client', 'taxYear'])
-                ->latest()
-                ->take(25)
-                ->get();
+        // Tax year filter: ?year=ID, warna active year
+        $years = TaxYear::orderByDesc('id')->get();
+        $year = $years->firstWhere('id', $request->integer('year'))
+            ?? $years->firstWhere('is_active', true)
+            ?? $years->first();
 
-            $recentClients = Client::withCount('taxReturns')
-                ->latest()
-                ->take(20)
-                ->get();
+        // Har call par fresh builder (clone ke masail se bachne ke liye)
+        $returns = fn () => TaxReturn::query()
+            ->when($year, fn ($q) => $q->where('tax_year_id', $year->id));
 
-            $serviceRequests = ServiceRequest::latest()
-                ->take(30)
-                ->get();
-            $pendingRequestsCount = ServiceRequest::where('status', 'submitted')->count();
+        // Ek hi query se sab statuses ke counts
+        $byStatus = $returns()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
-            $callbacks = CallbackRequest::latest()
-                ->take(30)
-                ->get();
-            $pendingCallbacksCount = CallbackRequest::where('status', 'pending')->count();
-            $consultancy = $user->consultancy ?? \App\Models\Consultancy::first();
+        $count = fn (string ...$keys) => (int) collect($keys)->sum(fn ($k) => $byStatus[$k] ?? 0);
 
-            return view('dashboard.company', compact(
-                'totalClients',
-                'totalReturns',
-                'inReviewReturns',
-                'readyToFile',
-                'filedReturns',
-                'draftReturns',
-                'totalTaxableVolume',
-                'totalRevenue',
-                'recentReturns',
-                'recentClients',
-                'serviceRequests',
-                'pendingRequestsCount',
-                'callbacks',
-                'pendingCallbacksCount',
-                'consultancy'
-            ));
-        }
+        $stats = [
+            'in_review'      => $count('in_review'),
+            'ready_to_file'  => $count('ready_to_file'),
+            'waiting_client' => $count('docs_pending', 'query'),
+            'filed'          => $count('filed', 'closed'),
+            'total'          => (int) $byStatus->sum(),
+        ];
 
-        // Client dashboard
-        $client = $user->client;
-        $myReturns = $client ? $client->taxReturns()->with('taxYear')->latest()->get() : collect();
-        $myServiceRequests = ServiceRequest::where('user_id', $user->id)
-            ->orWhere('applicant_email', $user->email)
-            ->latest()
+        // Paise: sirf asli paid/outstanding
+        $money = [
+            'collected_returns'  => (float) $returns()->where('fee_status', 'paid')->sum('fee_amount'),
+            'outstanding'        => (float) $returns()
+                ->where('fee_status', '!=', 'paid')
+                ->where('status', '!=', 'draft')
+                ->sum('fee_amount'),
+            'collected_services' => (float) ServiceRequest::where('payment_status', 'paid')->sum('fee_amount'),
+        ];
+
+        // Needs attention: company ke action wale returns, unread client messages ke saath
+        $clientUserIds = User::where('role', 'client')->select('id');
+
+        $attention = $returns()
+            ->with(['client', 'taxYear'])
+            ->withCount(['queries as unread_queries_count' => fn ($q) => $q
+                ->where('is_read', false)
+                ->whereIn('user_id', $clientUserIds),
+            ])
+            ->whereIn('status', ['in_review', 'ready_to_file', 'query', 'docs_pending'])
+            ->orderByRaw("CASE status WHEN 'ready_to_file' THEN 1 WHEN 'in_review' THEN 2 WHEN 'query' THEN 3 ELSE 4 END")
+            ->latest('updated_at')
+            ->limit(15)
             ->get();
 
-        return view('dashboard.client', compact('client', 'myReturns', 'myServiceRequests'));
+        // Leads aur orders: sirf 5-5 aur counts
+        $leads = CallbackRequest::where('status', 'pending')->latest()->limit(5)->get();
+        $orders = ServiceRequest::where('status', 'submitted')->latest()->limit(5)->get();
+        $pendingLeads = CallbackRequest::where('status', 'pending')->count();
+        $pendingOrders = ServiceRequest::where('status', 'submitted')->count();
+
+        // Deadline (tax_years.filing_deadline). FBR extension ho to yahan update karein.
+        $deadline = $year?->filing_deadline ? Carbon::parse($year->filing_deadline) : null;
+        $daysLeft = $deadline
+            ? (int) now()->startOfDay()->diffInDays($deadline->copy()->startOfDay(), false)
+            : null;
+
+        return view('dashboard.company', compact(
+            'consultancy', 'years', 'year', 'stats', 'money', 'attention',
+            'leads', 'orders', 'pendingLeads', 'pendingOrders', 'deadline', 'daysLeft'
+        ));
+    }
+
+    private function client(User $user)
+    {
+        $client = $user->client;
+        $returns = $client
+            ? $client->taxReturns()->with('taxYear')->latest()->get()
+            : collect();
+        $current = $returns->first();
+
+        // To-do list asli data se
+        $todo = [];
+        $deadline = null;
+        $daysLeft = null;
+
+        if ($current) {
+            $deadline = $current->taxYear?->filing_deadline
+                ? Carbon::parse($current->taxYear->filing_deadline)
+                : null;
+            $daysLeft = $deadline
+                ? (int) now()->startOfDay()->diffInDays($deadline->copy()->startOfDay(), false)
+                : null;
+
+            $unread = $current->queries()
+                ->where('is_read', false)
+                ->where('user_id', '!=', $user->id)
+                ->get();
+
+            if ($unread->isNotEmpty()) {
+                $todo[] = [
+                    'tone'  => 'orange',
+                    'title' => 'Consultant ka naya sawal (' . $unread->count() . ')',
+                    'body'  => (string) str($unread->first()->message)->limit(120),
+                    'url'   => route('returns.wizard', $current),
+                    'cta'   => 'Jawab dein',
+                ];
+            }
+
+            if ($current->status === 'docs_pending') {
+                $docCount = $current->documents()->count();
+                $todo[] = [
+                    'tone'  => 'amber',
+                    'title' => 'Documents chahiye',
+                    'body'  => $docCount > 0
+                        ? "Aap ne abhi tak {$docCount} document upload kiye hain."
+                        : 'Abhi tak koi document upload nahi hua.',
+                    'url'   => route('wizard.filing', $current),
+                    'cta'   => 'Upload karein',
+                ];
+            }
+
+            if ($current->status === 'draft') {
+                $todo[] = [
+                    'tone'  => 'blue',
+                    'title' => 'Return mukammal karein',
+                    'body'  => 'Return abhi draft mein hai. Details bhar kar submit karein.',
+                    'url'   => route('wizard.filing', $current),
+                    'cta'   => 'Continue',
+                ];
+            }
+
+            if ($current->status !== 'draft' && $current->fee_status !== 'paid') {
+                $todo[] = [
+                    'tone'  => 'slate',
+                    'title' => 'Fee baqi hai: PKR ' . number_format($current->fee_amount, 0),
+                    'body'  => 'Fee ki tasdeeq hone tak consultant filing shuru nahi karega.',
+                    'url'   => route('wizard.filing', ['return' => $current, 'step' => 12]),
+                    'cta'   => 'Payment details',
+                ];
+            }
+        }
+
+        $activeYear = TaxYear::where('is_active', true)->first() ?? TaxYear::latest()->first();
+        if (! $deadline && $activeYear?->filing_deadline) {
+            $deadline = Carbon::parse($activeYear->filing_deadline);
+            $daysLeft = (int) now()->startOfDay()->diffInDays($deadline->copy()->startOfDay(), false);
+        }
+        $consultancy = $user->consultancy ?? Consultancy::first();
+
+        // orWhere ab group ke andar, taake scope/filters na tootein
+        $mine = fn () => ServiceRequest::where(fn ($q) => $q
+            ->where('user_id', $user->id)
+            ->orWhere('applicant_email', $user->email));
+
+        $servicesCount = $mine()->count();
+        $services = $mine()->latest()->limit(5)->get();
+
+        return view('dashboard.client', compact(
+            'client', 'returns', 'current', 'todo', 'deadline', 'daysLeft',
+            'services', 'servicesCount', 'activeYear', 'consultancy'
+        ));
+    }
+
+    /**
+     * Start a new tax return for the logged-in client with 1 click
+     */
+    public function startReturn(Request $request)
+    {
+        $user = $request->user();
+        $consultancy = $user->consultancy ?? Consultancy::first();
+        $client = $user->client;
+
+        if (! $client) {
+            $client = Client::create([
+                'user_id' => $user->id,
+                'consultancy_id' => $consultancy?->id ?? 1,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => '03001234567',
+                'cnic' => '42101-1234567-1',
+            ]);
+        }
+
+        $activeYear = TaxYear::where('is_active', true)->first() ?? TaxYear::latest()->first();
+        if (! $activeYear) {
+            return back()->with('error', 'Tax year available nahi hai.');
+        }
+
+        $existing = TaxReturn::where('client_id', $client->id)
+            ->where('tax_year_id', $activeYear->id)
+            ->first();
+
+        if ($existing) {
+            return redirect()->route('wizard.filing', ['return' => $existing, 'step' => 1]);
+        }
+
+        $return = TaxReturn::create([
+            'consultancy_id' => $consultancy?->id ?? 1,
+            'client_id' => $client->id,
+            'tax_year_id' => $activeYear->id,
+            'filing_type' => 'original',
+            'status' => 'draft',
+            'fee_amount' => $consultancy?->default_return_fee ?? 3000,
+            'fee_status' => 'pending',
+            'selected_categories' => ['salary', 'advance_tax', 'expenses', 'assets', 'reconciliation'],
+        ]);
+
+        $return->wealthReconciliation()->create([
+            'opening_wealth' => 0,
+            'net_inflows' => 0,
+            'living_expenses' => 0,
+            'other_outflows' => 0,
+            'closing_wealth' => 0,
+            'unreconciled_difference' => 0,
+        ]);
+
+        return redirect()->route('wizard.filing', ['return' => $return, 'step' => 1])
+            ->with('success', 'Aapka naya tax return shuru ho chuka hai! Step 1 fill karein.');
     }
 
     /**

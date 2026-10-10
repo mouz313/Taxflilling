@@ -1,4 +1,4 @@
-<x-layouts.guest title="Contact Us & Tax Consultation - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Contact Support & Advocacy" title="Contact Us & Tax Consultation - TaxFiler.pk">
     <div class="max-w-5xl mx-auto space-y-10 py-4">
         <!-- Header -->
         <div class="text-center space-y-3">
@@ -176,4 +176,4 @@
             </div>
         </div>
     </div>
-</x-layouts.guest>
+</x-dynamic-component>

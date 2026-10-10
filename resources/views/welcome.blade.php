@@ -12,40 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            200: '#bfdbfe',
-                            300: '#93c5fd',
-                            400: '#60a5fa',
-                            500: '#3b82f6',
-                            600: '#2563eb', // Blue-600 Primary
-                            700: '#1d4ed8', // Blue-700 Hover
-                            800: '#1e40af',
-                            900: '#1e3a8a',
-                            950: '#172554',
-                        },
-                        primary: {
-                            DEFAULT: '#2563eb',
-                            hover: '#1d4ed8',
-                            soft: '#eff6ff',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['"Inter"', 'system-ui', 'sans-serif'],
-                        urdu: ['"Noto Nastaliq Urdu"', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <!-- Alpine.js Application Component Definition -->
     <script>

@@ -79,7 +79,7 @@ class CorporateOrderController extends Controller
     {
         $validated = $request->validate([
             'status' => ['required', 'in:draft,submitted,in_review,completed,cancelled'],
-            'payment_status' => ['nullable', 'in:pending,paid'],
+            'payment_status' => ['nullable', 'in:pending,pending_verification,paid'],
             'delivered_reference_no' => ['nullable', 'string', 'max:255'],
             'admin_notes' => ['nullable', 'string', 'max:2000'],
             'delivered_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,zip', 'max:10240'],

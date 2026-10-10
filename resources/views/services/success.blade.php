@@ -1,4 +1,4 @@
-<x-layouts.guest title="Application Submitted & Payment - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Application Received" title="Application Submitted & Payment - TaxFiler.pk">
     <div class="max-w-2xl mx-auto py-6 sm:py-10">
         <div class="bg-white rounded-3xl border border-gray-100 p-8 sm:p-10 shadow-sm text-center">
             <!-- Green Success Check -->
@@ -56,9 +56,19 @@
                                     <p class="text-[11px] font-mono text-emerald-700">Ref: {{ $serviceRequest->payment_reference ?? 'N/A' }} via {{ ucfirst($serviceRequest->payment_method ?? 'Online') }}</p>
                                 </div>
                             </div>
+                        @elseif($serviceRequest->payment_status === 'pending_verification')
+                            <!-- Payment Pending Verification Banner -->
+                            <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center space-x-3 text-amber-800">
+                                <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center font-bold text-sm text-amber-700">⏳</div>
+                                <div>
+                                    <h4 class="text-xs font-bold">Payment Reference Under Verification</h4>
+                                    <p class="text-[11px] font-mono text-amber-700">Ref: {{ $serviceRequest->payment_reference ?? 'N/A' }} via {{ ucfirst(str_replace('_', ' ', $serviceRequest->payment_method ?? 'Bank/Wallet')) }}</p>
+                                    <p class="text-[10px] text-amber-600 mt-0.5">Aapka payment proof receive ho chuka hai. Consultant verification ke baad order confirm ho jayega.</p>
+                                </div>
+                            </div>
                         @else
                             <!-- Payment Form & Options -->
-                            <form method="POST" action="{{ route('services.pay', $serviceRequest) }}" class="mt-4 space-y-4">
+                            <form method="POST" action="{{ route('services.payment-proof', $serviceRequest) }}" class="mt-4 space-y-4">
                                 @csrf
 
                                 <!-- Payment Method Tabs -->
@@ -105,6 +115,15 @@
                                     <p class="text-[11px] text-slate-400">
                                         Apne bank app (HBL, Meezan, Alfalah, Nayapay) mein <strong>1Bill Invoices</strong> search karein aur payment karein.
                                     </p>
+                                    <div>
+                                        <label class="block text-slate-600 font-semibold mb-1">Paid Bank Reference / Receipt No:</label>
+                                        <input
+                                            type="text"
+                                            name="payment_reference"
+                                            placeholder="e.g. 1BILL-9821820"
+                                            class="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-xs outline-none focus:border-blue-500"
+                                        />
+                                    </div>
                                 </div>
 
                                 <!-- JazzCash / Mobile Details -->
@@ -140,7 +159,7 @@
                                     type="submit"
                                     class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center space-x-2"
                                 >
-                                    <span>✓ Pay & Confirm Fee (PKR {{ number_format($serviceRequest->fee_amount, 0) }})</span>
+                                    <span>Submit Payment Reference (PKR {{ number_format($serviceRequest->fee_amount, 0) }})</span>
                                 </button>
                             </form>
                         @endif
@@ -223,4 +242,4 @@
             </div>
         </div>
     </div>
-</x-layouts.guest>
+</x-dynamic-component>

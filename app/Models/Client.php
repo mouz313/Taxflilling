@@ -65,6 +65,18 @@ class Client extends Model
     }
 
     /**
+     * Masked CNIC for dashboards and lists (e.g. *****-*******-1)
+     */
+    public function getMaskedCnicAttribute(): string
+    {
+        $digits = preg_replace('/\D/', '', (string) $this->cnic);
+
+        return strlen($digits) === 13
+            ? '*****-*******-' . substr($digits, -1)
+            : '-';
+    }
+
+    /**
      * Generate HMAC blind index for CNIC.
      * Uses application key as HMAC secret so rainbow tables cannot reverse it.
      */

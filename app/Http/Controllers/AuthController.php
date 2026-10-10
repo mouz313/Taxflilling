@@ -68,9 +68,9 @@ class AuthController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:30'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
             'name' => ['nullable', 'string', 'max:255'],
-            'cnic' => ['nullable', 'string'],
+            'cnic' => ['required', 'string'],
             'filer_type' => ['nullable', 'in:fresh_filer,already_filer'],
         ]);
 
@@ -83,13 +83,20 @@ class AuthController extends Controller
         $name = !empty($validated['name']) ? $validated['name'] : ucfirst(explode('@', $validated['email'])[0]);
         $filerType = $validated['filer_type'] ?? 'fresh_filer';
 
-        // Clean CNIC format 42101-1234567-1
-        $formattedCnic = '42101-0000000-1';
-        if (!empty($validated['cnic'])) {
-            $cleaned = preg_replace('/[^0-9]/', '', $validated['cnic']);
-            $formattedCnic = strlen($cleaned) === 13
-                ? substr($cleaned, 0, 5) . '-' . substr($cleaned, 5, 7) . '-' . substr($cleaned, 12, 1)
-                : $validated['cnic'];
+        // Clean & format CNIC: 42101-1234567-1
+        $cleaned = preg_replace('/[^0-9]/', '', $validated['cnic']);
+        if (strlen($cleaned) !== 13) {
+            throw ValidationException::withMessages([
+                'cnic' => '13-digit Pakistani CNIC number darj karein (e.g. 42101-1234567-1).',
+            ]);
+        }
+        $formattedCnic = substr($cleaned, 0, 5) . '-' . substr($cleaned, 5, 7) . '-' . substr($cleaned, 12, 1);
+        $cnicHash = Client::generateCnicHash($formattedCnic);
+
+        if (Client::where('cnic_hash', $cnicHash)->exists()) {
+            throw ValidationException::withMessages([
+                'cnic' => 'Yeh CNIC number pehle se registered hai. Barah-e-karam login karein.',
+            ]);
         }
 
         // 1. Create User
@@ -109,6 +116,7 @@ class AuthController extends Controller
             'user_id' => $user->id,
             'name' => $name,
             'cnic' => $formattedCnic,
+            'cnic_hash' => $cnicHash,
             'phone' => $validated['phone'],
             'email' => $validated['email'],
             'status' => 'active',

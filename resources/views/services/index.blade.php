@@ -1,4 +1,4 @@
-<x-layouts.guest title="Business & Corporate Services - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Business & Corporate Services" title="Business & Corporate Services - TaxFiler.pk">
     <div
         class="max-w-7xl mx-auto space-y-6"
         x-data="{
@@ -92,7 +92,9 @@
         <!-- Breadcrumb & Page Heading -->
         <div class="bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 shadow-xs">
             <nav class="flex text-xs font-semibold text-gray-400 mb-3 space-x-2">
-                <a href="/" class="hover:text-blue-600 transition">Home</a>
+                <a href="{{ auth()->check() ? route('dashboard') : url('/') }}" class="hover:text-blue-600 transition">
+                    {{ auth()->check() ? 'Dashboard' : 'Home' }}
+                </a>
                 <span>/</span>
                 <span class="text-blue-600">Business Services</span>
             </nav>
@@ -665,4 +667,4 @@
             </div>
         </div>
     </div>
-</x-layouts.guest>
+</x-dynamic-component>

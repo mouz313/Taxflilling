@@ -25,9 +25,9 @@ Route::post('/services/apply', [\App\Http\Controllers\BusinessServicesController
 Route::post('/services/check-cnic', [\App\Http\Controllers\BusinessServicesController::class, 'checkCnic'])->name('services.check-cnic');
 Route::post('/services/callback', [\App\Http\Controllers\BusinessServicesController::class, 'storeCallback'])->name('services.callback');
 Route::get('/services/success', [\App\Http\Controllers\BusinessServicesController::class, 'success'])->name('services.success');
-Route::post('/services/{serviceRequest}/pay', [\App\Http\Controllers\BusinessServicesController::class, 'processPayment'])->name('services.pay');
+Route::post('/services/{serviceRequest}/proof', [\App\Http\Controllers\BusinessServicesController::class, 'submitProof'])->name('services.payment-proof');
 Route::post('/services/{serviceRequest}/checkout', [\App\Http\Controllers\PaymentGatewayController::class, 'initiatePayment'])->name('payment.checkout');
-Route::match(['get', 'post'], '/payment/callback/{gateway}', [\App\Http\Controllers\PaymentGatewayController::class, 'handleCallback'])->name('payment.callback');
+Route::post('/payment/callback/{gateway}', [\App\Http\Controllers\PaymentGatewayController::class, 'handleCallback'])->name('payment.callback');
 
 // Online ATL Status Checker (Non-persisted Model Verification)
 Route::post('/check-atl', [\App\Http\Controllers\AtlCheckerController::class, 'check'])->name('atl.check');
@@ -102,11 +102,13 @@ Route::middleware('auth')->group(function () {
         // Tax Returns Pipeline
         Route::resource('returns', TaxReturnController::class);
         Route::post('returns/{return}/status', [TaxReturnController::class, 'transitionStatus'])->name('returns.status');
+        Route::post('returns/{return}/confirm-fee', [TaxReturnController::class, 'confirmFee'])->name('returns.confirm-fee');
 
         // Dedicated Performance Boards: Corporate Orders & Call Requests
         Route::get('admin/corporate-orders', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'index'])->name('admin.orders.index');
         Route::post('admin/corporate-orders/{serviceRequest}/status', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'updateStatus'])->name('admin.orders.status');
-        Route::post('admin/corporate-orders/{serviceRequest}/sync-fbr', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'syncFbr'])->name('admin.orders.sync-fbr');
+        Route::post('admin/corporate-orders/{serviceRequest}/mark-paid', [\App\Http\Controllers\BusinessServicesController::class, 'markPaid'])->name('services.mark-paid');
+        Route::post('services/{serviceRequest}/mark-paid', [\App\Http\Controllers\BusinessServicesController::class, 'markPaid']);
         Route::delete('admin/corporate-orders/{serviceRequest}', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'destroy'])->name('admin.orders.destroy');
 
         Route::get('admin/call-requests', [\App\Http\Controllers\Admin\CallRequestController::class, 'index'])->name('admin.callbacks.index');
@@ -147,7 +149,10 @@ Route::middleware('auth')->group(function () {
 
     // Client Portal Specific Routes
     Route::middleware('role:client')->group(function () {
-        Route::get('/my-returns', [DashboardController::class, 'index'])->name('client.returns');
+        Route::get('/my-returns', [TaxReturnController::class, 'clientIndex'])->name('client.returns');
         Route::get('/my-returns/{return}', [TaxReturnController::class, 'wizard'])->name('client.returns.show');
+        Route::post('/client/returns/start', [DashboardController::class, 'startReturn'])->name('client.returns.start');
+        Route::delete('/my-returns/{return}', [TaxReturnController::class, 'destroy'])->name('client.returns.destroy');
+        Route::get('/my-applications', [\App\Http\Controllers\BusinessServicesController::class, 'clientApplications'])->name('client.applications');
     });
 });

@@ -1,4 +1,4 @@
-<x-layouts.guest title="Track Application & Return Status - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Application Tracker" title="Track Application & Return Status - TaxFiler.pk">
     <div
         class="max-w-4xl mx-auto space-y-8 py-4"
         x-data="{
@@ -39,6 +39,59 @@
         }"
         x-init="if (searchQuery.trim().length >= 2) { searchAjax(); }"
     >
+        @auth
+            <div class="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
+                <a href="{{ route('dashboard') }}" class="hover:text-blue-600 transition flex items-center gap-1">
+                    <span>&larr; Back to Dashboard</span>
+                </a>
+                <a href="{{ route('client.applications') }}" class="text-blue-600 font-semibold hover:underline">
+                    View in My Applications Portal &rarr;
+                </a>
+            </div>
+        @endauth
+
+        @if(auth()->check() && isset($myRequests) && $myRequests->isNotEmpty())
+            <!-- Logged-in User's Active Applications -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900">My Applications &amp; Orders</h2>
+                        <p class="text-xs text-slate-500">Live status of your submitted corporate and NTN files</p>
+                    </div>
+                    <a href="{{ route('services.index') }}" class="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition">
+                        + New Application
+                    </a>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    @foreach($myRequests as $req)
+                        <div class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-sm text-slate-900">{{ $req->service_name }}</span>
+                                    <span class="font-mono text-xs text-slate-500">#{{ $req->tracking_number }}</span>
+                                </div>
+                                <div class="text-xs text-slate-500 mt-0.5">
+                                    Applied: {{ $req->created_at->format('d M Y, h:i A') }}
+                                    @if($req->admin_notes)
+                                        &middot; <span class="text-blue-700 font-medium">Note: {{ $req->admin_notes }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <x-ui.status-badge :status="$req->payment_status" />
+                                <x-ui.status-badge :status="$req->status" />
+                                @if($req->delivered_file_path)
+                                    <a href="{{ route('services.download', $req) }}" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition">
+                                        Download File 📥
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <!-- Header & Search Box -->
         <div class="text-center space-y-3">
             <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
@@ -365,4 +418,4 @@
             </a>
         </div>
     </div>
-</x-layouts.guest>
+</x-dynamic-component>

@@ -11,6 +11,7 @@ use App\Models\TaxYear;
 use App\Models\WealthAsset;
 use App\Models\WealthLiability;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class TaxReturnController extends Controller
 {
@@ -121,6 +122,8 @@ class TaxReturnController extends Controller
      */
     public function wizard(TaxReturn $return)
     {
+        Gate::authorize('view', $return);
+
         $return->load([
             'client',
             'taxYear',
@@ -221,28 +224,40 @@ class TaxReturnController extends Controller
         ];
 
         // Fetch Live FBR IRIS Verification Snapshot for Client
-        $fbrService = app(\App\Services\FbrVerificationService::class);
-        $cnic = $return->client?->cnic ?? '42101-1234567-1';
-        $atl = $fbrService->verifyAtl($cnic);
-        $ntnProfile = $fbrService->verifyNtn($cnic);
+        $cnic = $return->client?->cnic;
+        $fbrSnapshot = null;
+        if (!empty($cnic)) {
+            $fbrService = app(\App\Services\FbrVerificationService::class);
+            $atl = $fbrService->verifyAtl($cnic);
+            $ntnProfile = $fbrService->verifyNtn($cnic);
 
-        $fbrSnapshot = [
-            'fetched_at' => now()->format('d M Y, h:i A'),
-            'identifier' => $cnic,
-            'atl' => $atl,
-            'profile' => $ntnProfile,
-        ];
+            $fbrSnapshot = [
+                'fetched_at' => now()->format('d M Y, h:i A'),
+                'identifier' => $cnic,
+                'atl' => $atl,
+                'profile' => $ntnProfile,
+            ];
+        }
 
         return view('returns.wizard', compact('return', 'allCategories', 'fbrSnapshot'));
     }
 
     /**
-     * AJAX Live Re-sync FBR IRIS record for this return's client
+     * AJAX Live Re-sync FBR record for this return's client
      */
     public function syncFbr(Request $request, TaxReturn $return)
     {
+        Gate::authorize('view', $return);
+
+        $cnic = $return->client?->cnic;
+        if (empty($cnic)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client profile mein CNIC number maujood nahi hai.',
+            ], 422);
+        }
+
         $fbrService = app(\App\Services\FbrVerificationService::class);
-        $cnic = $return->client?->cnic ?? '42101-1234567-1';
         $atl = $fbrService->verifyAtl($cnic);
         $ntnProfile = $fbrService->verifyNtn($cnic);
 
@@ -255,7 +270,7 @@ class TaxReturnController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'FBR IRIS live record synchronized successfully!',
+            'message' => 'Client record synchronized successfully.',
             'snapshot' => $fbrSnapshot,
         ]);
     }
@@ -265,6 +280,7 @@ class TaxReturnController extends Controller
      */
     public function show(TaxReturn $return)
     {
+        Gate::authorize('view', $return);
         $return->load([
             'client',
             'taxYear',
@@ -285,6 +301,8 @@ class TaxReturnController extends Controller
      */
     public function updateCategories(Request $request, TaxReturn $return)
     {
+        Gate::authorize('update', $return);
+
         $categories = $request->input('categories', []);
         $return->update(['selected_categories' => $categories]);
 
@@ -296,7 +314,7 @@ class TaxReturnController extends Controller
      */
     public function addIncomeItem(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'source_type' => ['required', 'string'],
@@ -314,7 +332,8 @@ class TaxReturnController extends Controller
 
     public function removeIncomeItem(IncomeItem $item)
     {
-        if ($item->taxReturn->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $item->taxReturn);
+
         $item->delete();
         return back()->with('success', 'Entry delete ho gayi.');
     }
@@ -324,7 +343,7 @@ class TaxReturnController extends Controller
      */
     public function addAdjustment(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'adjustment_type' => ['required', 'string'],
@@ -340,7 +359,8 @@ class TaxReturnController extends Controller
 
     public function removeAdjustment(TaxAdjustment $adjustment)
     {
-        if ($adjustment->taxReturn->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $adjustment->taxReturn);
+
         $adjustment->delete();
         return back()->with('success', 'Adjustment entry delete ho gayi.');
     }
@@ -350,7 +370,7 @@ class TaxReturnController extends Controller
      */
     public function addDeduction(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'deduction_type' => ['required', 'string'],
@@ -365,7 +385,8 @@ class TaxReturnController extends Controller
 
     public function removeDeduction(TaxDeduction $deduction)
     {
-        if ($deduction->taxReturn->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $deduction->taxReturn);
+
         $deduction->delete();
         return back()->with('success', 'Deduction delete ho gayi.');
     }
@@ -375,7 +396,7 @@ class TaxReturnController extends Controller
      */
     public function updateExpenses(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'household_expenses' => ['required', 'numeric', 'min:0'],
@@ -397,7 +418,7 @@ class TaxReturnController extends Controller
      */
     public function addAsset(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'asset_type' => ['required', 'string'],
@@ -425,7 +446,8 @@ class TaxReturnController extends Controller
     public function removeAsset(WealthAsset $asset)
     {
         $return = $asset->taxReturn;
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
+
         $asset->delete();
 
         $totalAssets = $return->wealthAssets()->sum('cost_value');
@@ -443,7 +465,7 @@ class TaxReturnController extends Controller
      */
     public function addLiability(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'liability_type' => ['required', 'string'],
@@ -467,7 +489,8 @@ class TaxReturnController extends Controller
     public function removeLiability(WealthLiability $liability)
     {
         $return = $liability->taxReturn;
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
+
         $liability->delete();
 
         $totalAssets = $return->wealthAssets()->sum('cost_value');
@@ -485,7 +508,7 @@ class TaxReturnController extends Controller
      */
     public function updateWealth(Request $request, TaxReturn $return)
     {
-        if ($return->is_locked) return back()->with('error', 'Return locked hai.');
+        Gate::authorize('update', $return);
 
         $validated = $request->validate([
             'opening_wealth' => ['required', 'numeric'],
@@ -506,6 +529,8 @@ class TaxReturnController extends Controller
      */
     public function transitionStatus(Request $request, TaxReturn $return)
     {
+        Gate::authorize('transitionStatus', $return);
+
         $validated = $request->validate([
             'status' => ['required', 'string'],
             'notes' => ['nullable', 'string'],
@@ -536,10 +561,30 @@ class TaxReturnController extends Controller
     }
 
     /**
+     * Confirm fee received by company staff
+     */
+    public function confirmFee(TaxReturn $return)
+    {
+        Gate::authorize('confirmFee', $return);
+
+        $return->update(['fee_status' => 'paid']);
+        $return->statusLogs()->create([
+            'from_status' => $return->status,
+            'to_status' => $return->status,
+            'changed_by_user_id' => auth()->id(),
+            'notes' => 'Fee payment company ne confirm ki.',
+        ]);
+
+        return back()->with('success', 'Fee paid mark ho gayi.');
+    }
+
+    /**
      * Delete a tax return and its associated records.
      */
     public function destroy(TaxReturn $return)
     {
+        Gate::authorize('delete', $return);
+
         $id = $return->id;
         $clientName = $return->client?->name ?? 'Client';
         $taxYearName = $return->taxYear?->name ?? '';
@@ -557,7 +602,38 @@ class TaxReturnController extends Controller
 
         $return->delete();
 
+        if (auth()->user()->isClient()) {
+            $prev = url()->previous();
+            if ($prev && str_contains($prev, 'my-returns')) {
+                return redirect()->route('client.returns')
+                    ->with('success', 'Draft return kamiyabi se delete ho gaya.');
+            }
+
+            return redirect()->route('dashboard')
+                ->with('success', 'Draft return kamiyabi se delete ho gaya.');
+        }
+
         return redirect()->route('returns.index')
             ->with('success', "Tax Return #{$id} ({$clientName} - {$taxYearName}) kamiyabi se delete ho gaya!");
+    }
+
+    /**
+     * Dedicated Client Portal: My Tax Returns listing & management
+     */
+    public function clientIndex(Request $request)
+    {
+        $user = $request->user();
+        $client = $user->client;
+
+        $returns = $client
+            ? TaxReturn::with(['taxYear', 'wealthReconciliation', 'documents'])
+                ->where('client_id', $client->id)
+                ->orderByDesc('id')
+                ->get()
+            : collect();
+
+        $activeYear = \App\Models\TaxYear::where('is_active', true)->first() ?? \App\Models\TaxYear::latest()->first();
+
+        return view('client.returns.index', compact('returns', 'client', 'activeYear'));
     }
 }
