@@ -1,200 +1,269 @@
-<x-layouts.app header="Tax Returns Pipeline &amp; Performance Board">
-    <div class="space-y-6">
-        <!-- 1. Executive Performance Bar & Identity -->
-        <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div>
-                <div class="flex items-center space-x-2 mb-1.5">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                        📑 Returns Dossier &bull; FBR IRIS 2.0
-                    </span>
-                    <span class="text-xs text-slate-400 font-mono">/returns</span>
+<x-layouts.app header="Tax Returns Pipeline">
+    <div class="space-y-4 w-full">
+        <!-- ========================================================================= -->
+        <!-- 1. ADMINLTE KPI SMALL-BOXES (INFO-BOXES)                                  -->
+        <!-- ========================================================================= -->
+        <!-- ========================================================================= -->
+        <!-- 1. AUTHENTIC ADMINLTE KPI SMALL-BOXES                                     -->
+        <!-- ========================================================================= -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 w-full">
+            <!-- Box 1: Total -->
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3>{{ $totalReturns ?? 0 }}</h3>
+                    <p>Total Returns</p>
                 </div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Tax Returns Filing Pipeline &amp; Performance Board</h1>
-                <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-                    Client tax returns ki 12-category calculations, advance tax adjustments, IRIS copy sheet dossier, aur FBR submission timeline ko monitor karein.
-                </p>
+                <div class="icon">
+                    <i class="fas fa-file-invoice"></i>
+                </div>
+                <a href="{{ route('returns.index') }}" class="small-box-footer">
+                    <span>Pipeline Volume</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
             </div>
 
-            <div class="flex items-center gap-2">
-                <a href="{{ route('returns.export') }}">
-                    <button class="px-3.5 py-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition flex items-center space-x-1.5" title="Export Pipeline to Excel">
-                        <span>📊 Export Excel</span>
-                    </button>
+            <!-- Box 2: In Review -->
+            <div class="small-box bg-primary">
+                <div class="inner">
+                    <h3>{{ $inReviewReturns ?? 0 }}</h3>
+                    <p>In Review</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <a href="{{ route('returns.index', ['status' => 'in_review']) }}" class="small-box-footer">
+                    <span>Audit Pending</span> <i class="fas fa-arrow-circle-right ml-1"></i>
                 </a>
-                <a href="{{ route('returns.create') }}">
-                    <button class="px-4 py-2.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs transition flex items-center space-x-1.5">
-                        <span>+ Initiate Tax Return</span>
-                    </button>
+            </div>
+
+            <!-- Box 3: Ready to File -->
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h3>{{ $readyToFile ?? 0 }}</h3>
+                    <p>Ready to File</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <a href="{{ route('returns.index', ['status' => 'ready_to_file']) }}" class="small-box-footer">
+                    <span>IRIS Entry</span> <i class="fas fa-arrow-circle-right ml-1"></i>
                 </a>
+            </div>
+
+            <!-- Box 4: Filed on IRIS -->
+            <div class="small-box bg-secondary">
+                <div class="inner">
+                    <h3>{{ $filedReturns ?? 0 }}</h3>
+                    <p>Filed on IRIS</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-check-double"></i>
+                </div>
+                <a href="{{ route('returns.index', ['status' => 'filed']) }}" class="small-box-footer">
+                    <span>Ack Issued ✓</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
+            </div>
+
+            <!-- Box 5: Tax Volume -->
+            <div class="small-box bg-warning col-span-2 sm:col-span-1">
+                <div class="inner">
+                    <h3 class="text-[#1f2d3d] text-lg font-mono">Rs {{ number_format($totalTaxVolume ?? 0, 0) }}</h3>
+                    <p class="text-[#1f2d3d]">Taxable Volume</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <div class="small-box-footer text-[#1f2d3d]">
+                    <span>Assessed Income</span>
+                </div>
             </div>
         </div>
 
-        <!-- 2. KPI Performance Stat Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <a href="{{ route('returns.index') }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition">
-                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Returns</div>
-                <div class="text-2xl font-bold text-slate-800 mt-1 font-mono tabular-nums">{{ $totalReturns ?? 0 }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Pipeline volume</div>
-            </a>
-
-            <a href="{{ route('returns.index', ['status' => 'in_review']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition">
-                <div class="text-xs font-semibold text-blue-700 uppercase tracking-wider">In Review</div>
-                <div class="text-2xl font-bold text-blue-600 mt-1 font-mono tabular-nums">{{ $inReviewReturns ?? 0 }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Dossier being checked</div>
-            </a>
-
-            <a href="{{ route('returns.index', ['status' => 'ready_to_file']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-indigo-400 transition">
-                <div class="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Ready to File</div>
-                <div class="text-2xl font-bold text-indigo-600 mt-1 font-mono tabular-nums">{{ $readyToFile ?? 0 }}</div>
-                <div class="text-[11px] text-indigo-600/80 mt-0.5 font-medium">Approved for IRIS entry</div>
-            </a>
-
-            <a href="{{ route('returns.index', ['status' => 'filed']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-emerald-400 transition">
-                <div class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Filed on IRIS</div>
-                <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono tabular-nums">{{ $filedReturns ?? 0 }}</div>
-                <div class="text-[11px] text-emerald-600/80 mt-0.5 font-medium">Ack number issued ✓</div>
-            </a>
-
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Taxable Income</div>
-                <div class="text-xl font-bold text-slate-800 mt-1 font-mono tabular-nums">PKR {{ number_format($totalTaxVolume ?? 0, 0) }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Assessed volume</div>
+        <!-- ========================================================================= -->
+        <!-- 2. ADMINLTE CARD: FULL-WIDTH TABLE & CONTROLS                             -->
+        <!-- ========================================================================= -->
+        <div class="card card-primary card-outline w-full">
+            <!-- Card Header -->
+            <div class="card-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 class="card-title text-sm font-bold text-[#212529] flex items-center gap-2">
+                    <i class="fas fa-file-invoice-dollar text-[#007bff]"></i>
+                    <span>Tax Returns Master Dossier ({{ $returns->total() }} records)</span>
+                </h3>
+                <!-- Card Tools -->
+                <div class="card-tools flex items-center gap-2">
+                    <a
+                        href="{{ route('returns.export') }}"
+                        class="btn btn-xs btn-success font-bold inline-flex items-center gap-1"
+                        title="Export Returns to Excel"
+                    >
+                        <i class="fas fa-file-excel"></i>
+                        <span>Export Excel</span>
+                    </a>
+                    <a
+                        href="{{ route('returns.create') }}"
+                        class="btn btn-xs btn-primary font-bold inline-flex items-center gap-1"
+                    >
+                        <i class="fas fa-plus"></i>
+                        <span>New Return</span>
+                    </a>
+                </div>
             </div>
-        </div>
 
-    <!-- Standardized Search and Filter Bar -->
-    <x-ui.search-bar
-        placeholder="Search returns by client name, CNIC, or IRIS number..."
-        :action="route('returns.index')"
-        :searchValue="$search"
-    >
-        <x-slot:filters>
-            <select
-                name="status"
-                onchange="this.form.submit()"
-                class="text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-            >
-                <option value="">All Pipeline Stages</option>
-                <option value="draft" {{ $status === 'draft' ? 'selected' : '' }}>Draft</option>
-                <option value="docs_pending" {{ $status === 'docs_pending' ? 'selected' : '' }}>Docs Pending</option>
-                <option value="in_review" {{ $status === 'in_review' ? 'selected' : '' }}>In Review</option>
-                <option value="query" {{ $status === 'query' ? 'selected' : '' }}>Query Sent</option>
-                <option value="ready_to_file" {{ $status === 'ready_to_file' ? 'selected' : '' }}>Ready to File</option>
-                <option value="filed" {{ $status === 'filed' ? 'selected' : '' }}>Filed on IRIS</option>
-                <option value="closed" {{ $status === 'closed' ? 'selected' : '' }}>Closed</option>
-            </select>
-
-            <select
-                name="tax_year_id"
-                onchange="this.form.submit()"
-                class="text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-            >
-                <option value="">All Tax Years</option>
-                @foreach($taxYears as $ty)
-                    <option value="{{ $ty->id }}" {{ $taxYearId == $ty->id ? 'selected' : '' }}>{{ $ty->name }}</option>
-                @endforeach
-            </select>
-        </x-slot:filters>
-
-        <x-slot:actions>
-            <a href="{{ route('returns.create') }}">
-                <x-ui.button variant="primary">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>New Return</span>
-                </x-ui.button>
-            </a>
-        </x-slot:actions>
-    </x-ui.search-bar>
-
-    <!-- Standard Returns Table -->
-    <x-ui.table
-        :headers="['Client Details', 'CNIC', 'Tax Year', 'Total Income', 'Tax Liability', 'Pipeline Status', 'Filing Lock', 'Actions']"
-        :empty="$returns->isEmpty()"
-        emptyMessage="Is filter ke mutabiq koi return nahi mila."
-    >
-        @foreach($returns as $ret)
-            <tr class="hover:bg-gray-50/50 transition">
-                <x-ui.td>
-                    <div class="font-bold text-gray-900">{{ $ret->client->name }}</div>
-                    <div class="text-xs text-gray-400">{{ $ret->client->phone }}</div>
-                </x-ui.td>
-                <x-ui.td class="font-mono text-xs">
-                    {{ $ret->client->cnic }}
-                </x-ui.td>
-                <x-ui.td>
-                    <span class="text-xs font-semibold text-gray-800">{{ $ret->taxYear->name }}</span>
-                    @if($ret->filing_type === 'amendment')
-                        <span class="block text-[10px] text-amber-600 font-bold uppercase">Amendment #{{ $ret->amendment_no }}</span>
-                    @endif
-                </x-ui.td>
-                <x-ui.td class="font-medium text-gray-900">
-                    PKR {{ number_format($ret->total_income, 0) }}
-                </x-ui.td>
-                <x-ui.td>
-                    @if($ret->net_tax_payable_or_refundable > 0)
-                        <span class="text-xs font-bold text-rose-600">
-                            Payable: PKR {{ number_format($ret->net_tax_payable_or_refundable, 0) }}
+            <!-- Filter Bar Inside Card -->
+            <div class="p-4 border-b border-slate-100 bg-white">
+                <form method="GET" action="{{ route('returns.index') }}" class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                    <!-- Search Input -->
+                    <div class="sm:col-span-6 relative">
+                        <input
+                            type="text"
+                            name="search"
+                            value="{{ $search ?? '' }}"
+                            placeholder="Search by client name, CNIC, or IRIS number..."
+                            class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500 transition"
+                        />
+                        <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400 pointer-events-none text-xs">
+                            🔍
                         </span>
-                    @elseif($ret->net_tax_payable_or_refundable < 0)
-                        <span class="text-xs font-bold text-teal-600">
-                            Refund: PKR {{ number_format(abs($ret->net_tax_payable_or_refundable), 0) }}
-                        </span>
-                    @else
-                        <span class="text-xs text-gray-400">PKR 0</span>
-                    @endif
-                </x-ui.td>
-                <x-ui.td>
-                    <x-ui.badge :status="$ret->status" />
-                </x-ui.td>
-                <x-ui.td>
-                    @if($ret->is_locked)
-                        <span class="inline-flex items-center text-xs text-gray-500 font-medium">
-                            <svg class="w-3.5 h-3.5 mr-1 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                            </svg>
-                            Locked
-                        </span>
-                    @else
-                        <span class="text-xs text-emerald-600 font-medium">Editable</span>
-                    @endif
-                </x-ui.td>
-                <x-ui.td>
-                    <div class="flex items-center space-x-1.5">
-                        <a href="{{ route('returns.pdf', $ret) }}" class="p-1.5 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm transition" title="Download Official FBR 114(1) PDF Dossier">
-                            📄
-                        </a>
-                        <a href="{{ route('returns.wizard', $ret) }}" class="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm transition" title="12-Category Filing Wizard">
-                            🧮
-                        </a>
-                        <a href="{{ route('returns.show', $ret) }}" class="p-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm transition" title="FBR IRIS Console & Codes">
-                            📋
-                        </a>
-                        <form method="POST" action="{{ route('returns.destroy', $ret) }}" onsubmit="return confirm('Kya aap waqai Tax Return #{{ $ret->id }} ({{ $ret->client->name }}) ko delete karna chahte hain? Tamam data delete ho jayega.');" class="inline">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="p-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg text-sm transition cursor-pointer" title="Delete Tax Return">
-                                🗑️
-                            </button>
-                        </form>
                     </div>
-                </x-ui.td>
-            </tr>
-        @endforeach
 
-        @if($returns->hasPages())
-            <x-slot:footer>
-                <div class="flex items-center justify-between">
-                    <p class="text-xs text-gray-500">
+                    <!-- Pipeline Stage Filter -->
+                    <div class="sm:col-span-3">
+                        <select
+                            name="status"
+                            onchange="this.form.submit()"
+                            class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value="">All Pipeline Stages</option>
+                            <option value="draft" {{ ($status ?? '') === 'draft' ? 'selected' : '' }}>Draft</option>
+                            <option value="docs_pending" {{ ($status ?? '') === 'docs_pending' ? 'selected' : '' }}>Docs Pending</option>
+                            <option value="in_review" {{ ($status ?? '') === 'in_review' ? 'selected' : '' }}>In Review</option>
+                            <option value="query" {{ ($status ?? '') === 'query' ? 'selected' : '' }}>Query Sent</option>
+                            <option value="ready_to_file" {{ ($status ?? '') === 'ready_to_file' ? 'selected' : '' }}>Ready to File</option>
+                            <option value="filed" {{ ($status ?? '') === 'filed' ? 'selected' : '' }}>Filed on IRIS</option>
+                            <option value="closed" {{ ($status ?? '') === 'closed' ? 'selected' : '' }}>Closed</option>
+                        </select>
+                    </div>
+
+                    <!-- Tax Year Filter -->
+                    <div class="sm:col-span-3 flex space-x-2">
+                        <select
+                            name="tax_year_id"
+                            onchange="this.form.submit()"
+                            class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value="">All Tax Years</option>
+                            @foreach($taxYears as $ty)
+                                <option value="{{ $ty->id }}" {{ ($taxYearId ?? null) == $ty->id ? 'selected' : '' }}>Tax Year {{ $ty->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md text-xs font-bold text-slate-700">
+                            Go
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Full-Width Table -->
+            <div class="overflow-x-auto w-full">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                            <th class="py-2.5 px-4">Client Details</th>
+                            <th class="py-2.5 px-3">CNIC</th>
+                            <th class="py-2.5 px-3">Tax Year</th>
+                            <th class="py-2.5 px-3">Total Income</th>
+                            <th class="py-2.5 px-3">Tax Liability</th>
+                            <th class="py-2.5 px-3">Pipeline Status</th>
+                            <th class="py-2.5 px-3">Lock</th>
+                            <th class="py-2.5 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse($returns as $ret)
+                            <tr class="hover:bg-slate-50/80 transition">
+                                <td class="py-3 px-4 font-bold text-slate-900">
+                                    <div class="font-bold text-slate-900">{{ $ret->client->name }}</div>
+                                    <div class="text-[11px] text-slate-400 font-normal">{{ $ret->client->phone }}</div>
+                                </td>
+                                <td class="py-3 px-3 font-mono text-slate-700 text-xs">
+                                    {{ $ret->client->cnic }}
+                                </td>
+                                <td class="py-3 px-3">
+                                    <span class="font-semibold text-slate-800">TY {{ $ret->taxYear->name }}</span>
+                                    @if($ret->filing_type === 'amendment')
+                                        <span class="block text-[9px] text-amber-600 font-bold uppercase">Amendment #{{ $ret->amendment_no }}</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 px-3 font-medium text-slate-900 font-mono">
+                                    Rs {{ number_format($ret->total_income, 0) }}
+                                </td>
+                                <td class="py-3 px-3">
+                                    @if($ret->net_tax_payable_or_refundable > 0)
+                                        <span class="text-xs font-bold text-rose-600 font-mono">
+                                            Payable: Rs {{ number_format($ret->net_tax_payable_or_refundable, 0) }}
+                                        </span>
+                                    @elseif($ret->net_tax_payable_or_refundable < 0)
+                                        <span class="text-xs font-bold text-teal-600 font-mono">
+                                            Refund: Rs {{ number_format(abs($ret->net_tax_payable_or_refundable), 0) }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-slate-400">Rs 0</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 px-3">
+                                    <x-ui.badge :status="$ret->status" />
+                                </td>
+                                <td class="py-3 px-3">
+                                    @if($ret->is_locked)
+                                        <span class="inline-flex items-center text-[11px] text-slate-500 font-medium">
+                                            🔒 Locked
+                                        </span>
+                                    @else
+                                        <span class="text-[11px] text-emerald-600 font-medium">Editable</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    <div class="inline-flex items-center space-x-1">
+                                        <a href="{{ route('returns.pdf', $ret) }}" class="p-1 px-2 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded text-xs transition" title="Download FBR 114(1) PDF">
+                                            📄 PDF
+                                        </a>
+                                        <a href="{{ route('returns.wizard', $ret) }}" class="p-1 px-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded text-xs transition font-semibold" title="Filing Wizard">
+                                            🧮 Wizard
+                                        </a>
+                                        <a href="{{ route('returns.show', $ret) }}" class="p-1 px-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded text-xs transition font-semibold" title="Console">
+                                            📋 View
+                                        </a>
+                                        <form method="POST" action="{{ route('returns.destroy', $ret) }}" onsubmit="return confirm('Tax Return #{{ $ret->id }} ko delete karna chahte hain?');" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="p-1 px-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 rounded text-xs transition cursor-pointer" title="Delete">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" class="py-8 text-center text-slate-400">
+                                    Is filter ke mutabiq koi tax return nahi mila.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Card Footer Pagination -->
+            @if($returns->hasPages())
+                <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                    <p class="text-xs text-slate-500">
                         Showing {{ $returns->firstItem() }} to {{ $returns->lastItem() }} of {{ $returns->total() }} returns
                     </p>
                     <div>
                         {{ $returns->links() }}
                     </div>
                 </div>
-            </x-slot:footer>
-        @endif
-    </x-ui.table>
+            @endif
+        </div>
     </div>
 </x-layouts.app>

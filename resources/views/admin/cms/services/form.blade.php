@@ -85,11 +85,19 @@
                             required
                             class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                         >
-                            @foreach($categories as $catKey => $catData)
-                                <option value="{{ $catKey }}" {{ old('category', $service->category) === $catKey ? 'selected' : '' }}>
-                                    {{ $catData['icon'] }} {{ $catData['name'] }}
-                                </option>
-                            @endforeach
+                            @if(isset($serviceCategories) && $serviceCategories->count() > 0)
+                                @foreach($serviceCategories as $sc)
+                                    <option value="{{ $sc->slug }}" {{ old('category', $service->category) === $sc->slug || old('service_category_id', $service->service_category_id) == $sc->id ? 'selected' : '' }}>
+                                        {{ $sc->icon }} {{ $sc->name }}
+                                    </option>
+                                @endforeach
+                            @else
+                                @foreach($categories as $catKey => $catData)
+                                    <option value="{{ $catKey }}" {{ old('category', $service->category) === $catKey ? 'selected' : '' }}>
+                                        {{ $catData['icon'] }} {{ $catData['name'] }}
+                                    </option>
+                                @endforeach
+                            @endif
                         </select>
                     </div>
 
@@ -214,11 +222,85 @@
                 </div>
             </div>
 
-            <!-- Section 3: Description & Document Requirements -->
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-                <div class="border-b border-slate-100 pb-3">
-                    <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">3. Description & Client Documents</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">Service ki tafseel aur client se required documents list.</p>
+            <!-- Section 3: Description & Dynamic Document Requirements Builder -->
+            @php
+                $normalizedReqs = [];
+                $rawReqs = old('requirements', $service->requirements ?? []);
+                if (is_array($rawReqs)) {
+                    foreach ($rawReqs as $r) {
+                        if (is_array($r)) {
+                            $normalizedReqs[] = [
+                                'label' => $r['label'] ?? '',
+                                'type' => $r['type'] ?? 'file',
+                                'file_types' => !empty($r['file_types']) ? (array)$r['file_types'] : ['jpg', 'jpeg', 'png', 'pdf'],
+                                'required' => isset($r['required']) ? (bool)$r['required'] : true,
+                            ];
+                        } elseif (is_string($r) && trim($r) !== '') {
+                            $isText = preg_match('/phone|email|name|number|address/i', $r);
+                            $normalizedReqs[] = [
+                                'label' => $r,
+                                'type' => $isText ? 'text' : 'file',
+                                'file_types' => ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+                                'required' => true,
+                            ];
+                        }
+                    }
+                }
+                if (empty($normalizedReqs)) {
+                    $normalizedReqs = [
+                        [
+                            'label' => 'Color copy of CNIC',
+                            'type' => 'file',
+                            'file_types' => ['jpg', 'jpeg', 'png', 'pdf'],
+                            'required' => true,
+                        ],
+                    ];
+                }
+            @endphp
+
+            <div 
+                x-data="{
+                    reqs: {{ Js::from($normalizedReqs) }},
+                    availableExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xlsx'],
+                    addReq() {
+                        this.reqs.push({
+                            label: '',
+                            type: 'file',
+                            file_types: ['jpg', 'jpeg', 'png', 'pdf'],
+                            required: true
+                        });
+                    },
+                    removeReq(index) {
+                        if (this.reqs.length > 1) {
+                            this.reqs.splice(index, 1);
+                        } else {
+                            this.reqs[0] = { label: '', type: 'file', file_types: ['jpg', 'jpeg', 'png', 'pdf'], required: true };
+                        }
+                    },
+                    toggleExt(index, ext) {
+                        const types = this.reqs[index].file_types;
+                        const pos = types.indexOf(ext);
+                        if (pos > -1) {
+                            if (types.length > 1) types.splice(pos, 1);
+                        } else {
+                            types.push(ext);
+                        }
+                    }
+                }"
+                class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5"
+            >
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">3. Description & Client Requirements Builder</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Admin can configure text questions or file uploads with allowed extensions (PDF, PNG, JPG, DOC etc).</p>
+                    </div>
+                    <button 
+                        type="button" 
+                        @click="addReq()"
+                        class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition border border-blue-200"
+                    >
+                        <span>+ Add Requirement</span>
+                    </button>
                 </div>
 
                 <!-- Description -->
@@ -232,16 +314,104 @@
                     >{{ old('desc', $service->desc) }}</textarea>
                 </div>
 
-                <!-- Required Documents (One per line) -->
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Required Client Documents (One per line)</label>
-                    <textarea
-                        name="requirements_text"
-                        rows="4"
-                        placeholder="Color copy of CNIC (Front & Back)&#10;Paid electricity bill premises copy&#10;Active mobile number registered on CNIC"
-                        class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
-                    >{{ old('requirements_text', is_array($service->requirements) ? implode("\n", $service->requirements) : '') }}</textarea>
-                    <span class="text-[10px] text-slate-400 mt-1 block">Har naye document requirement ko nayi line (Enter) par likhein.</span>
+                <!-- Interactive Requirements List -->
+                <div class="space-y-3 pt-2">
+                    <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Configured Requirements & Fields for Client
+                    </label>
+
+                    <template x-for="(req, index) in reqs" :key="index">
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-3">
+                                    <!-- Label -->
+                                    <div class="sm:col-span-7">
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">
+                                            Requirement Label / Question <span class="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            :name="'requirements[' + index + '][label]'"
+                                            x-model="req.label"
+                                            required
+                                            placeholder="e.g. Color copy of CNIC, Rent agreement, Phone number"
+                                            class="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500 font-medium"
+                                        >
+                                    </div>
+
+                                    <!-- Field Type -->
+                                    <div class="sm:col-span-3">
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Field Type</label>
+                                        <select
+                                            :name="'requirements[' + index + '][type]'"
+                                            x-model="req.type"
+                                            class="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:border-blue-500 font-semibold"
+                                        >
+                                            <option value="file">📁 File Upload</option>
+                                            <option value="text">✏️ Text Input</option>
+                                            <option value="textarea">📝 Long Textarea</option>
+                                            <option value="number">🔢 Number / CNIC</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Required Toggle -->
+                                    <div class="sm:col-span-2 flex items-center pt-5">
+                                        <label class="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                :name="'requirements[' + index + '][required]'"
+                                                value="1"
+                                                x-model="req.required"
+                                                class="w-4 h-4 text-blue-600 rounded-sm border-slate-300 focus:ring-blue-500"
+                                            >
+                                            <span>Required</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Delete Row Button -->
+                                <button
+                                    type="button"
+                                    @click="removeReq(index)"
+                                    title="Remove requirement"
+                                    class="text-slate-400 hover:text-rose-600 p-1.5 transition rounded-lg hover:bg-rose-50"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Allowed File Types (When Type == 'file') -->
+                            <div x-show="req.type === 'file'" class="pt-2 border-t border-slate-200/80 flex flex-wrap items-center gap-2 text-xs">
+                                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Allowed Extensions:</span>
+                                <template x-for="ext in availableExtensions" :key="ext">
+                                    <label class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md border text-[11px] font-mono cursor-pointer transition"
+                                        :class="req.file_types.includes(ext) ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold' : 'bg-white border-slate-200 text-slate-400'">
+                                        <input
+                                            type="checkbox"
+                                            :name="'requirements[' + index + '][file_types][]'"
+                                            :value="ext"
+                                            :checked="req.file_types.includes(ext)"
+                                            @change="toggleExt(index, ext)"
+                                            class="hidden"
+                                        >
+                                        <span x-text="'.' + ext"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="pt-2">
+                    <button 
+                        type="button" 
+                        @click="addReq()"
+                        class="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-600 hover:border-blue-300 transition flex items-center justify-center space-x-2"
+                    >
+                        <span>+ Add Another Requirement / Field</span>
+                    </button>
                 </div>
             </div>
 

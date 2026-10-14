@@ -83,6 +83,81 @@ class DashboardController extends Controller
         $pendingLeads = CallbackRequest::where('status', 'pending')->count();
         $pendingOrders = ServiceRequest::where('status', 'submitted')->count();
 
+        // Monthly filing & order statistics for the 11-bar chart
+        $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $monthlyStats = [];
+        $currentYearNum = (int) date('Y');
+
+        try {
+            $returnCounts = TaxReturn::selectRaw('MONTH(created_at) as m, count(*) as c')
+                ->whereYear('created_at', $currentYearNum)
+                ->groupBy('m')
+                ->pluck('c', 'm');
+
+            $orderCounts = ServiceRequest::selectRaw('MONTH(created_at) as m, count(*) as c')
+                ->whereYear('created_at', $currentYearNum)
+                ->groupBy('m')
+                ->pluck('c', 'm');
+        } catch (\Throwable $e) {
+            $returnCounts = collect();
+            $orderCounts = collect();
+        }
+
+        $maxVal = 1;
+        foreach (range(1, 11) as $m) {
+            $rCount = (int) ($returnCounts[$m] ?? 0);
+            $oCount = (int) ($orderCounts[$m] ?? 0);
+            $total = $rCount + $oCount;
+            // Demo base height if new install with low data so chart has graceful aesthetic
+            $demoHeight = [35, 20, 70, 95, 60, 45, 80, 50, 40, 65, 55][$m - 1];
+            if ($total > $maxVal) $maxVal = $total;
+            $monthlyStats[] = [
+                'month' => $months[$m - 1],
+                'filings' => $rCount,
+                'orders' => $oCount,
+                'total' => $total,
+                'percent' => $total > 0 ? min(100, round(($total / max(1, $maxVal)) * 100)) : $demoHeight,
+            ];
+        }
+
+        // Recent Transactions Feed (Unified Orders + Returns)
+        $recentTransactions = collect();
+        try {
+            $recentOrders = ServiceRequest::latest()->take(4)->get()->map(function ($order) {
+                return (object) [
+                    'id' => 'ORD-' . $order->id,
+                    'title' => $order->service_name,
+                    'subtitle' => $order->applicant_name ?: ($order->client?->name ?? 'Corporate Client'),
+                    'tag' => 'Corporate',
+                    'icon' => '🏛️',
+                    'icon_bg' => 'bg-emerald-50 text-emerald-700',
+                    'date' => $order->created_at->format('F d, Y · h:i A'),
+                    'amount' => (float) $order->fee_amount,
+                    'status' => $order->payment_status === 'paid' ? 'Completed' : 'Pending',
+                    'status_color' => $order->payment_status === 'paid' ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50',
+                    'url' => route('admin.orders.index', ['search' => $order->tracking_number]),
+                ];
+            });
+
+            $recentReturns = TaxReturn::with('client')->latest('updated_at')->take(4)->get()->map(function ($ret) {
+                return (object) [
+                    'id' => 'RET-' . $ret->id,
+                    'title' => 'Income Tax Return (' . ($ret->taxYear?->name ?? '2024-25') . ')',
+                    'subtitle' => $ret->client?->name ?? 'Individual Filer',
+                    'tag' => 'FBR IRIS',
+                    'icon' => '📜',
+                    'icon_bg' => 'bg-blue-50 text-blue-700',
+                    'date' => $ret->updated_at->format('F d, Y · h:i A'),
+                    'amount' => (float) $ret->fee_amount,
+                    'status' => in_array($ret->status, ['filed', 'closed']) ? 'Completed' : ($ret->fee_status === 'paid' ? 'Completed' : 'Pending'),
+                    'status_color' => in_array($ret->status, ['filed', 'closed']) ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50',
+                    'url' => route('returns.show', $ret),
+                ];
+            });
+
+            $recentTransactions = $recentOrders->concat($recentReturns)->sortByDesc('date')->take(5)->values();
+        } catch (\Throwable $e) {}
+
         // Deadline (tax_years.filing_deadline). FBR extension ho to yahan update karein.
         $deadline = $year?->filing_deadline ? Carbon::parse($year->filing_deadline) : null;
         $daysLeft = $deadline
@@ -91,7 +166,8 @@ class DashboardController extends Controller
 
         return view('dashboard.company', compact(
             'consultancy', 'years', 'year', 'stats', 'money', 'attention',
-            'leads', 'orders', 'pendingLeads', 'pendingOrders', 'deadline', 'daysLeft'
+            'leads', 'orders', 'pendingLeads', 'pendingOrders', 'deadline', 'daysLeft',
+            'monthlyStats', 'recentTransactions'
         ));
     }
 

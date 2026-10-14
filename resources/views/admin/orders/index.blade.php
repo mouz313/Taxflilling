@@ -56,151 +56,192 @@
         }"
         class="space-y-6"
     >
-        <!-- 1. Executive Performance Bar & Identity -->
-        <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div>
-                <div class="flex items-center space-x-2 mb-1.5">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                        ⚡ Operations Console &bull; Corporate Desk
-                    </span>
-                    <span class="text-xs text-slate-400 font-mono">/admin/corporate-orders</span>
+        <!-- ========================================================================= -->
+        <!-- ========================================================================= -->
+        <!-- 1. AUTHENTIC ADMINLTE KPI SMALL-BOXES (ORDERS DESK)                       -->
+        <!-- ========================================================================= -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 w-full">
+            <!-- Box 1: Total Orders -->
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3>{{ $totalOrders }}</h3>
+                    <p>Total Orders</p>
                 </div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight">NTN & Corporate Service Performance Board</h1>
-                <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-                    SECP Private Limited, Individual & Business NTN, Sales Tax (STRN), aur USA LLC applications ko review karein, IRIS status update karein, aur finalized certificate upload karein.
-                </p>
+                <div class="icon">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <a href="{{ route('admin.orders.index', ['status' => 'all']) }}" class="small-box-footer">
+                    <span>All Services</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
             </div>
 
-            <!-- Quick Revenue & Orders Summary & Export Button -->
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-                <div class="grid grid-cols-2 gap-3 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
-                    <div>
-                        <div class="text-[10px] uppercase font-bold text-slate-400">Paid Revenue</div>
-                        <div class="text-lg font-bold text-emerald-400 font-mono tabular-nums">PKR {{ number_format($totalRevenue, 0) }}</div>
+            <!-- Box 2: New Submitted -->
+            <div class="small-box bg-warning">
+                <div class="inner">
+                    <div class="flex items-center space-x-2">
+                        <h3 class="text-[#1f2d3d]">{{ $submittedCount }}</h3>
+                        @if($submittedCount > 0)
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
+                        @endif
                     </div>
-                    <div>
-                        <div class="text-[10px] uppercase font-bold text-slate-400">Pending Fees</div>
-                        <div class="text-lg font-bold text-amber-400 font-mono tabular-nums">PKR {{ number_format($pendingRevenue, 0) }}</div>
-                    </div>
+                    <p class="text-[#1f2d3d]">New Submitted</p>
                 </div>
+                <div class="icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <a href="{{ route('admin.orders.index', ['status' => 'submitted']) }}" class="small-box-footer text-[#1f2d3d]">
+                    <span>Action Required</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
+            </div>
 
-                <a href="{{ route('admin.orders.export') }}" class="px-3.5 py-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition flex items-center justify-center space-x-1.5" title="Export Orders to Excel / CSV">
-                    <span>📊 Export Excel</span>
+            <!-- Box 3: In Review -->
+            <div class="small-box bg-primary">
+                <div class="inner">
+                    <h3>{{ $inReviewCount }}</h3>
+                    <p>In Review</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <a href="{{ route('admin.orders.index', ['status' => 'in_review']) }}" class="small-box-footer">
+                    <span>Audit Pending</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
+            </div>
+
+            <!-- Box 4: Completed -->
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h3>{{ $completedCount }}</h3>
+                    <p>Completed &amp; Issued</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <a href="{{ route('admin.orders.index', ['status' => 'completed']) }}" class="small-box-footer">
+                    <span>Deliverables Sent</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
+            </div>
+
+            <!-- Box 5: Cancelled -->
+            <div class="small-box bg-secondary col-span-2 sm:col-span-1">
+                <div class="inner">
+                    <h3>{{ $cancelledCount }}</h3>
+                    <p>Cancelled</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <a href="{{ route('admin.orders.index', ['status' => 'cancelled']) }}" class="small-box-footer">
+                    <span>Rejected / Withdrawn</span> <i class="fas fa-arrow-circle-right ml-1"></i>
                 </a>
             </div>
         </div>
 
-        <!-- 2. KPI Performance Stat Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            <a href="{{ route('admin.orders.index', ['status' => 'all']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition">
-                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders</div>
-                <div class="text-2xl font-bold text-slate-800 mt-1 font-mono tabular-nums">{{ $totalOrders }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">All services submitted</div>
-            </a>
+        <!-- ========================================================================= -->
+        <!-- 2. ADMINLTE CARD: FULL-WIDTH ORDERS TABLE & CONTROLS                      -->
+        <!-- ========================================================================= -->
+        <div class="card card-primary card-outline w-full">
+            <!-- Card Header -->
+            <div class="card-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 class="card-title text-sm font-bold text-[#212529] flex items-center gap-2">
+                    <i class="fas fa-briefcase text-[#007bff]"></i>
+                    <span>Corporate &amp; NTN Service Orders Desk ({{ $orders->total() }} records)</span>
+                </h3>
 
-            <a href="{{ route('admin.orders.index', ['status' => 'submitted']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-amber-400 transition">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold text-amber-700 uppercase tracking-wider">New Submitted</span>
-                    @if($submittedCount > 0)
-                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    @endif
+                <div class="flex items-center space-x-3">
+                    <!-- Revenue Metrics Pills -->
+                    <div class="hidden sm:flex items-center space-x-2 text-xs font-mono">
+                        <span class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                            Paid: Rs {{ number_format($totalRevenue, 0) }}
+                        </span>
+                        <span class="px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold">
+                            Pending: Rs {{ number_format($pendingRevenue, 0) }}
+                        </span>
+                    </div>
+
+                    <a
+                        href="{{ route('admin.orders.export') }}"
+                        class="px-3 py-1.5 bg-[#28a745] hover:bg-emerald-700 text-white rounded-md text-xs font-bold transition shadow-2xs flex items-center space-x-1"
+                        title="Export Orders to Excel / CSV"
+                    >
+                        <span>📊</span>
+                        <span>Export Excel</span>
+                    </a>
                 </div>
-                <div class="text-2xl font-bold text-amber-600 mt-1 font-mono tabular-nums">{{ $submittedCount }}</div>
-                <div class="text-[11px] text-amber-600/80 mt-0.5 font-medium">Action required</div>
-            </a>
+            </div>
 
-            <a href="{{ route('admin.orders.index', ['status' => 'in_review']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition">
-                <div class="text-xs font-semibold text-blue-700 uppercase tracking-wider">In Review</div>
-                <div class="text-2xl font-bold text-blue-600 mt-1 font-mono tabular-nums">{{ $inReviewCount }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Processing in Iris/SECP</div>
-            </a>
+            <!-- Filter Bar Inside Card -->
+            <div class="p-4 border-b border-slate-100 bg-white">
+                <form method="GET" action="{{ route('admin.orders.index') }}" class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <!-- Search Input -->
+                    <div class="relative flex-1 max-w-md">
+                        <input
+                            type="text"
+                            name="search"
+                            value="{{ $search }}"
+                            placeholder="Search by Tracking #, Name, Phone, Email, Service..."
+                            class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500 transition"
+                        />
+                        <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400 pointer-events-none text-xs">
+                            🔍
+                        </span>
+                    </div>
 
-            <a href="{{ route('admin.orders.index', ['status' => 'completed']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-emerald-400 transition">
-                <div class="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Completed & Issued</div>
-                <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono tabular-nums">{{ $completedCount }}</div>
-                <div class="text-[11px] text-emerald-600/80 mt-0.5 font-medium">Deliverables sent</div>
-            </a>
-
-            <a href="{{ route('admin.orders.index', ['status' => 'cancelled']) }}" class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs hover:border-rose-400 transition">
-                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cancelled</div>
-                <div class="text-2xl font-bold text-slate-600 mt-1 font-mono tabular-nums">{{ $cancelledCount }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Rejected or withdrawn</div>
-            </a>
-        </div>
-
-        <!-- 3. Filter & Search Controls -->
-        <div class="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 sm:p-5">
-            <form method="GET" action="{{ route('admin.orders.index') }}" class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <!-- Search Input -->
-                <div class="relative flex-1 max-w-md">
-                    <input
-                        type="text"
-                        name="search"
-                        value="{{ $search }}"
-                        placeholder="Search by 9-digit Tracking #, Name, Phone, Email, Service..."
-                        class="w-full text-xs rounded-lg border border-slate-200 pl-8 pr-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    />
-                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-                </div>
-
-                <!-- Dropdown Filters & Status Chips -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <!-- Status Filter -->
-                    <select
-                        name="status"
-                        onchange="this.form.submit()"
-                        class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                    >
-                        <option value="all" {{ $status === 'all' ? 'selected' : '' }}>All Statuses</option>
-                        <option value="submitted" {{ $status === 'submitted' ? 'selected' : '' }}>Submitted</option>
-                        <option value="in_review" {{ $status === 'in_review' ? 'selected' : '' }}>In Review</option>
-                        <option value="completed" {{ $status === 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="cancelled" {{ $status === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-
-                    <!-- Service Code Filter -->
-                    <select
-                        name="service_code"
-                        onchange="this.form.submit()"
-                        class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                    >
-                        <option value="all">All Services</option>
-                        @foreach($availableServices as $srv)
-                            <option value="{{ $srv->service_code }}" {{ $serviceCode === $srv->service_code ? 'selected' : '' }}>
-                                {{ $srv->service_name }}
-                            </option>
-                        @endforeach
-                    </select>
-
-                    <!-- Payment Status Filter -->
-                    <select
-                        name="payment_status"
-                        onchange="this.form.submit()"
-                        class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                    >
-                        <option value="all" {{ $paymentStatus === 'all' ? 'selected' : '' }}>All Payments</option>
-                        <option value="paid" {{ $paymentStatus === 'paid' ? 'selected' : '' }}>Paid</option>
-                        <option value="pending" {{ $paymentStatus === 'pending' ? 'selected' : '' }}>Pending</option>
-                    </select>
-
-                    <button
-                        type="submit"
-                        class="px-3.5 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                        Filter
-                    </button>
-
-                    @if($search || $status !== 'all' || $serviceCode !== 'all' || $paymentStatus !== 'all')
-                        <a
-                            href="{{ route('admin.orders.index') }}"
-                            class="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 rounded-lg transition"
+                    <!-- Dropdowns -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select
+                            name="status"
+                            onchange="this.form.submit()"
+                            class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
                         >
-                            Reset
-                        </a>
-                    @endif
-                </div>
-            </form>
-        </div>
+                            <option value="all" {{ $status === 'all' ? 'selected' : '' }}>All Statuses</option>
+                            <option value="submitted" {{ $status === 'submitted' ? 'selected' : '' }}>Submitted</option>
+                            <option value="in_review" {{ $status === 'in_review' ? 'selected' : '' }}>In Review</option>
+                            <option value="completed" {{ $status === 'completed' ? 'selected' : '' }}>Completed</option>
+                            <option value="cancelled" {{ $status === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                        </select>
+
+                        <select
+                            name="service_code"
+                            onchange="this.form.submit()"
+                            class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value="all">All Services</option>
+                            @foreach($availableServices as $srv)
+                                <option value="{{ $srv->service_code }}" {{ $serviceCode === $srv->service_code ? 'selected' : '' }}>
+                                    {{ $srv->service_name }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <select
+                            name="payment_status"
+                            onchange="this.form.submit()"
+                            class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value="all" {{ $paymentStatus === 'all' ? 'selected' : '' }}>All Payments</option>
+                            <option value="paid" {{ $paymentStatus === 'paid' ? 'selected' : '' }}>Paid</option>
+                            <option value="pending" {{ $paymentStatus === 'pending' ? 'selected' : '' }}>Pending</option>
+                        </select>
+
+                        <button
+                            type="submit"
+                            class="px-3 py-1.5 bg-[#007bff] hover:bg-blue-700 text-white rounded-md text-xs font-bold transition shadow-2xs"
+                        >
+                            Filter
+                        </button>
+
+                        @if($search || $status !== 'all' || $serviceCode !== 'all' || $paymentStatus !== 'all')
+                            <a
+                                href="{{ route('admin.orders.index') }}"
+                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-md text-xs font-bold transition"
+                            >
+                                Reset
+                            </a>
+                        @endif
+                    </div>
+                </form>
+            </div>
 
         <!-- 4. Orders Data Table -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -451,6 +492,37 @@
                                                 Standard service registration. No additional custom form fields submitted.
                                             </p>
                                         </template>
+                                    </div>
+
+                                    <!-- Uploaded Client Documents List -->
+                                    <div class="pt-2 border-t border-slate-100" x-show="selectedOrder?.uploaded_files && Object.keys(selectedOrder.uploaded_files).length > 0">
+                                        <h5 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Attached Client Documents:</h5>
+                                        <div class="space-y-1.5">
+                                            <template x-for="(doc, dKey) in (selectedOrder?.uploaded_files || {})" :key="dKey">
+                                                <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200/70 text-xs">
+                                                    <span class="font-medium text-slate-800" x-text="doc.label || dKey"></span>
+                                                    <a :href="'/storage/' + doc.path" target="_blank" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold hover:bg-blue-100 text-[11px]">
+                                                        View File ↗
+                                                    </a>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Uploaded Payment Slip / Proof -->
+                                    <div class="pt-2 border-t border-slate-100" x-show="selectedOrder?.payment_proof_path">
+                                        <h5 class="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                                            <span>Payment Receipt / Slip Attached:</span>
+                                            <span class="text-[10px] text-amber-700 font-normal" x-text="'Method: ' + (selectedOrder?.payment_method || 'Bank Transfer')"></span>
+                                        </h5>
+                                        <div class="p-2.5 bg-amber-50 rounded-lg border border-amber-200 flex items-center justify-between text-xs">
+                                            <div>
+                                                <span class="font-bold text-slate-800" x-text="'Ref: ' + (selectedOrder?.payment_reference || 'Slip Uploaded')"></span>
+                                            </div>
+                                            <a :href="'/storage/' + selectedOrder?.payment_proof_path" target="_blank" class="px-2.5 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 text-xs">
+                                                Inspect Slip ↗
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
 

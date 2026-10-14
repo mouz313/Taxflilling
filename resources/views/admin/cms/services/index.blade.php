@@ -1,229 +1,243 @@
-<x-layouts.app>
-    <x-slot:header>
-        CMS &bull; Services Marketplace Manager
-    </x-slot:header>
-
-    <div class="space-y-6">
-        <!-- Top Title Bar -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-            <div>
-                <div class="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-blue-600 mb-1">
-                    <span>⚙️ Content Management System</span>
-                    <span>&bull;</span>
-                    <span>Public Services</span>
+<x-layouts.app header="CMS · Services Marketplace Manager">
+    <div class="w-full space-y-4">
+        <!-- 1. Authentic AdminLTE Small-Boxes Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <!-- Box 1: Total Services -->
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3>{{ $totalCount }}</h3>
+                    <p>Total Services</p>
                 </div>
-                <h2 class="text-xl font-bold text-slate-900 tracking-tight">Business Services Catalog</h2>
-                <p class="text-xs text-slate-500 mt-0.5">
-                    Yahan se aap tamam business services ka title, fees, turnaround time, aur requirements dynamically add aur edit kar sakte hain.
-                </p>
+                <div class="icon">
+                    <i class="fas fa-cubes"></i>
+                </div>
+                <a href="{{ route('admin.cms.services.index', ['category' => 'all']) }}" class="small-box-footer">
+                    <span>In Master Catalog</span> <i class="fas fa-arrow-circle-right ml-1"></i>
+                </a>
             </div>
-            <div class="flex items-center space-x-3">
-                <a
-                    href="{{ route('services.index') }}"
-                    target="_blank"
-                    class="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-                >
-                    <span>🌐 Live Preview</span>
-                    <span class="text-[10px] font-mono text-slate-400">↗</span>
-                </a>
-                <a
-                    href="{{ route('admin.cms.services.create') }}"
-                    class="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
-                >
-                    <span>➕ Add New Service</span>
-                </a>
+
+            <!-- Box 2: Live & Active -->
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h3>{{ $activeCount }}</h3>
+                    <p>Live &amp; Active</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="small-box-footer">
+                    <span>Publicly Available</span>
+                </div>
+            </div>
+
+            <!-- Box 3: Draft / Inactive -->
+            <div class="small-box bg-warning">
+                <div class="inner">
+                    <h3>{{ $totalCount - $activeCount }}</h3>
+                    <p>Draft / Inactive</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-pause-circle"></i>
+                </div>
+                <div class="small-box-footer">
+                    <span>Hidden from Visitors</span>
+                </div>
+            </div>
+
+            <!-- Box 4: Categories -->
+            <div class="small-box bg-secondary">
+                <div class="inner">
+                    <h3>{{ count($categories) }}</h3>
+                    <p>Active Sectors</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-folder-open"></i>
+                </div>
+                <div class="small-box-footer">
+                    <span>Business Categories</span>
+                </div>
             </div>
         </div>
 
-        <!-- Feedback Alert -->
         @if(session('status'))
-            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-2xs">
-                <div class="flex items-center space-x-2">
-                    <span>✅</span>
-                    <span>{{ session('status') }}</span>
-                </div>
-                <button type="button" onclick="this.parentElement.remove()" class="text-emerald-500 hover:text-emerald-800">&times;</button>
+            <div class="p-3 bg-[#d4edda] text-[#155724] border border-[#c3e6cb] rounded text-xs font-semibold flex items-center justify-between shadow-2xs">
+                <span>✅ {{ session('status') }}</span>
+                <button type="button" onclick="this.parentElement.remove()" class="text-[#155724] font-bold">&times;</button>
             </div>
         @endif
 
-        <!-- KPI Metrics -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Services</p>
-                <p class="text-2xl font-black text-slate-900 mt-1 tabular-nums">{{ $totalCount }}</p>
-                <p class="text-[10px] text-slate-500 mt-0.5">In master catalog</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <p class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Live &amp; Active</p>
-                <p class="text-2xl font-black text-emerald-700 mt-1 tabular-nums">{{ $activeCount }}</p>
-                <p class="text-[10px] text-emerald-600/80 mt-0.5">Visible to public clients</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <p class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Inactive / Hidden</p>
-                <p class="text-2xl font-black text-amber-700 mt-1 tabular-nums">{{ $totalCount - $activeCount }}</p>
-                <p class="text-[10px] text-amber-600/80 mt-0.5">Draft or temporarily disabled</p>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                <p class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Categories</p>
-                <p class="text-2xl font-black text-blue-700 mt-1 tabular-nums">{{ count($categories) }}</p>
-                <p class="text-[10px] text-blue-600/80 mt-0.5">Active business sectors</p>
-            </div>
-        </div>
+        <!-- 2. Services Data Card (AdminLTE) -->
+        <div class="card card-primary card-outline w-full">
+            <div class="card-header flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <h3 class="card-title text-sm font-bold text-[#212529] flex items-center gap-2">
+                    <i class="fas fa-boxes-stacked text-[#007bff]"></i>
+                    <span>Business Services Catalog &amp; Pricing</span>
+                </h3>
 
-        <!-- Filter & Search Controls -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <!-- Category Tabs -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs font-semibold">
-                <a
-                    href="{{ route('admin.cms.services.index', array_merge(request()->query(), ['category' => 'all'])) }}"
-                    class="px-3 py-1.5 rounded-lg whitespace-nowrap transition {{ $category === 'all' ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100' }}"
-                >
-                    All Services ({{ $totalCount }})
-                </a>
-                @foreach($categories as $catKey => $catData)
+                <!-- Card Tools -->
+                <div class="card-tools flex flex-wrap items-center gap-2">
+                    <!-- Category Filter Buttons -->
+                    <div class="inline-flex rounded-md shadow-2xs" role="group">
+                        <a
+                            href="{{ route('admin.cms.services.index', array_merge(request()->query(), ['category' => 'all'])) }}"
+                            class="btn btn-xs {{ $category === 'all' ? 'btn-primary font-bold' : 'btn-default' }}"
+                        >
+                            All ({{ $totalCount }})
+                        </a>
+                        @foreach($categories as $catKey => $catData)
+                            <a
+                                href="{{ route('admin.cms.services.index', array_merge(request()->query(), ['category' => $catKey])) }}"
+                                class="btn btn-xs {{ $category === $catKey ? 'btn-primary font-bold' : 'btn-default' }}"
+                            >
+                                <span>{{ $catData['icon'] }}</span>
+                                <span class="hidden sm:inline ml-1">{{ $catData['name'] }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+
+                    <!-- Search Form -->
+                    <form method="GET" action="{{ route('admin.cms.services.index') }}" class="flex items-center gap-1">
+                        @if($category !== 'all')
+                            <input type="hidden" name="category" value="{{ $category }}">
+                        @endif
+                        <div class="relative">
+                            <input
+                                type="text"
+                                name="search"
+                                value="{{ $search }}"
+                                placeholder="Search title or code..."
+                                class="form-control form-control-sm text-xs w-36 sm:w-48 pl-7"
+                            />
+                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[#adb5bd] text-xs"></i>
+                        </div>
+                        <button type="submit" class="btn btn-xs btn-primary font-semibold">Filter</button>
+                        @if(!empty($search))
+                            <a href="{{ route('admin.cms.services.index', ['category' => $category]) }}" class="text-xs text-[#dc3545] hover:underline px-1">Clear</a>
+                        @endif
+                    </form>
+
+                    <!-- Add New Service Button -->
                     <a
-                        href="{{ route('admin.cms.services.index', array_merge(request()->query(), ['category' => $catKey])) }}"
-                        class="px-3 py-1.5 rounded-lg whitespace-nowrap transition flex items-center space-x-1 {{ $category === $catKey ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:bg-slate-100' }}"
+                        href="{{ route('admin.cms.services.create') }}"
+                        class="btn btn-xs btn-success font-bold inline-flex items-center gap-1"
                     >
-                        <span>{{ $catData['icon'] }}</span>
-                        <span>{{ $catData['name'] }}</span>
+                        <i class="fas fa-plus"></i>
+                        <span>Add Service</span>
                     </a>
-                @endforeach
+
+                    <a
+                        href="{{ route('services.index') }}"
+                        target="_blank"
+                        class="btn btn-xs btn-default inline-flex items-center gap-1"
+                        title="Live Client Marketplace Preview"
+                    >
+                        <i class="fas fa-globe text-[#007bff]"></i>
+                        <span>Preview</span>
+                    </a>
+                </div>
             </div>
 
-            <!-- Search Form -->
-            <form method="GET" action="{{ route('admin.cms.services.index') }}" class="flex items-center space-x-2 flex-shrink-0">
-                @if($category !== 'all')
-                    <input type="hidden" name="category" value="{{ $category }}">
-                @endif
-                <div class="relative">
-                    <input
-                        type="text"
-                        name="search"
-                        value="{{ $search }}"
-                        placeholder="Search service name, code..."
-                        class="w-56 text-xs pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    >
-                    <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
-                </div>
-                <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold">Filter</button>
-                @if(!empty($search))
-                    <a href="{{ route('admin.cms.services.index', ['category' => $category]) }}" class="px-2 py-1.5 text-xs text-rose-600 hover:underline">Clear</a>
-                @endif
-            </form>
-        </div>
-
-        <!-- Services Data Table -->
-        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                            <th class="py-3.5 px-4">Service Details</th>
-                            <th class="py-3.5 px-4">Category</th>
-                            <th class="py-3.5 px-4">Fee (PKR)</th>
-                            <th class="py-3.5 px-4">Turnaround</th>
-                            <th class="py-3.5 px-4 text-center">Status</th>
-                            <th class="py-3.5 px-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 text-xs">
-                        @forelse($services as $item)
-                            <tr class="hover:bg-slate-50/80 transition {{ !$item->is_active ? 'opacity-60 bg-slate-50/40' : '' }}">
-                                <td class="py-3 px-4">
-                                    <div class="flex items-start space-x-3">
-                                        <div class="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-base flex-shrink-0">
-                                            {{ $item->icon }}
-                                        </div>
-                                        <div class="min-w-0">
-                                            <div class="flex items-center space-x-2">
-                                                <h4 class="font-bold text-slate-900 truncate">{{ $item->heading }}</h4>
-                                                @if($item->popular)
-                                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
-                                                        ★ Popular
-                                                    </span>
+            <!-- Table -->
+            <div class="card-body p-0">
+                <div class="overflow-x-auto">
+                    <table class="table table-hover table-striped w-full text-xs text-nowrap align-middle">
+                        <thead>
+                            <tr>
+                                <th>Service Details</th>
+                                <th>Category</th>
+                                <th>Fee (PKR)</th>
+                                <th>Turnaround</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($services as $item)
+                                <tr class="{{ !$item->is_active ? 'opacity-60 bg-[#f8f9fa]' : '' }}">
+                                    <td>
+                                        <div class="flex items-center space-x-2.5">
+                                            <span class="text-xl shrink-0">{{ $item->icon }}</span>
+                                            <div>
+                                                <div class="flex items-center space-x-1.5">
+                                                    <span class="font-bold text-[#212529]">{{ $item->heading }}</span>
+                                                    @if($item->popular)
+                                                        <span class="badge badge-warning text-[9px] font-extrabold uppercase">★ Popular</span>
+                                                    @endif
+                                                </div>
+                                                @if($item->urdu)
+                                                    <div class="text-[11px] text-[#007bff] font-medium">{{ $item->urdu }}</div>
                                                 @endif
+                                                <div class="text-[10px] text-[#6c757d] font-mono">Code: {{ $item->code }}</div>
                                             </div>
-                                            @if($item->urdu)
-                                                <p class="text-[11px] text-blue-600 font-medium">{{ $item->urdu }}</p>
-                                            @endif
-                                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">Code: {{ $item->code }}</p>
                                         </div>
-                                    </div>
-                                </td>
-
-                                <td class="py-3 px-4">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
-                                        {{ $categories[$item->category]['icon'] ?? '📁' }} {{ $item->category_name }}
-                                    </span>
-                                </td>
-
-                                <td class="py-3 px-4 font-bold text-slate-900 tabular-nums">
-                                    {{ $item->currency }} {{ number_format($item->fee, 0) }}
-                                </td>
-
-                                <td class="py-3 px-4 text-slate-600">
-                                    ⏱️ {{ $item->turnaround }}
-                                </td>
-
-                                <td class="py-3 px-4 text-center">
-                                    <form method="POST" action="{{ route('admin.cms.services.toggle', $item) }}" class="inline">
-                                        @csrf
-                                        <button
-                                            type="submit"
-                                            title="Click to toggle active status"
-                                            class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition {{ $item->is_active ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300' }}"
-                                        >
-                                            <span class="w-1.5 h-1.5 rounded-full {{ $item->is_active ? 'bg-emerald-500' : 'bg-slate-400' }}"></span>
-                                            <span>{{ $item->is_active ? 'Active' : 'Hidden' }}</span>
-                                        </button>
-                                    </form>
-                                </td>
-
-                                <td class="py-3 px-4 text-right">
-                                    <div class="flex items-center justify-end space-x-2">
-                                        <a
-                                            href="{{ route('admin.cms.services.edit', $item) }}"
-                                            class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 font-semibold transition"
-                                            title="Edit Service Details"
-                                        >
-                                            ✏️ Edit
-                                        </a>
-
-                                        <form
-                                            method="POST"
-                                            action="{{ route('admin.cms.services.destroy', $item) }}"
-                                            onsubmit="return confirm('Are you sure you want to delete \'{{ addslashes($item->heading) }}\'? This action cannot be undone.');"
-                                            class="inline"
-                                        >
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-secondary font-semibold">
+                                            {{ $categories[$item->category]['icon'] ?? '📁' }} {{ $item->category_name }}
+                                        </span>
+                                    </td>
+                                    <td class="font-bold text-[#212529] font-mono tabular-nums">
+                                        {{ $item->currency }} {{ number_format($item->fee, 0) }}
+                                    </td>
+                                    <td class="text-[#495057]">
+                                        <i class="far fa-clock mr-1 text-[#6c757d]"></i>{{ $item->turnaround }}
+                                    </td>
+                                    <td class="text-center">
+                                        <form method="POST" action="{{ route('admin.cms.services.toggle', $item) }}" class="inline">
                                             @csrf
-                                            @method('DELETE')
                                             <button
                                                 type="submit"
-                                                class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition"
-                                                title="Delete Service"
+                                                class="badge {{ $item->is_active ? 'badge-success' : 'badge-secondary' }} px-2.5 py-1 font-bold cursor-pointer transition hover:opacity-80"
+                                                title="Toggle Active / Hidden"
                                             >
-                                                🗑️
+                                                {{ $item->is_active ? 'Active' : 'Hidden' }}
                                             </button>
                                         </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="py-12 text-center text-slate-400">
-                                    <p class="text-3xl mb-2">🔍</p>
-                                    <p class="text-sm font-semibold text-slate-700">Koi service nahi mili</p>
-                                    <p class="text-xs text-slate-400 mt-1">Nayi service add karne ke liye upar 'Add New Service' button dabayein.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                                    </td>
+                                    <td class="text-right">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <a
+                                                href="{{ route('admin.cms.services.edit', $item) }}"
+                                                class="btn btn-xs btn-default text-[#007bff]"
+                                                title="Edit Service"
+                                            >
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </a>
+                                            <form
+                                                method="POST"
+                                                action="{{ route('admin.cms.services.destroy', $item) }}"
+                                                onsubmit="return confirm('Are you sure you want to delete \'{{ addslashes($item->heading) }}\'?');"
+                                                class="inline"
+                                            >
+                                                @csrf
+                                                @method('DELETE')
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-xs btn-default text-[#dc3545]"
+                                                    title="Delete Service"
+                                                >
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="py-12 text-center text-[#adb5bd]">
+                                        <i class="fas fa-search text-3xl mb-2 block"></i>
+                                        <p class="text-sm font-semibold text-[#495057] m-0">Koi service nahi mili</p>
+                                        <p class="text-xs text-[#6c757d] mt-1 m-0">Nayi service add karne ke liye upar 'Add Service' button dabayein.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             @if($services->hasPages())
-                <div class="p-4 border-t border-slate-200 bg-slate-50/50">
+                <div class="card-footer clearfix bg-white border-t border-[#dee2e6]">
                     {{ $services->links() }}
                 </div>
             @endif

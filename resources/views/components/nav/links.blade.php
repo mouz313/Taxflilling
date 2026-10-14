@@ -25,21 +25,25 @@
     ];
 
     $website = [
-        ['Services',          'admin.cms.services.index', 'admin.cms.services.*'],
-        ['FAQs',              'admin.cms.faqs.index',     'admin.cms.faqs.*'],
-        ['Site content',      'admin.cms.site.index',     'admin.cms.site.*'],
-        ['FBR tools (demo)',  'admin.fbr.index',          'admin.fbr.*'],
+        ['Categories',        'admin.cms.categories.index', 'admin.cms.categories.*'],
+        ['Services',          'admin.cms.services.index',   'admin.cms.services.*'],
+        ['Pages',             'admin.cms.pages.index',      'admin.cms.pages.*'],
+        ['Menu builder',      'admin.cms.menus.index',      'admin.cms.menus.*'],
+        ['FAQs',              'admin.cms.faqs.index',       'admin.cms.faqs.*'],
+        ['Site content',      'admin.cms.site.index',       'admin.cms.site.*'],
+        ['SEO & Marketing',   'admin.cms.seo.index',        'admin.cms.seo.*'],
+        ['FBR tools (demo)',  'admin.fbr.index',            'admin.fbr.*'],
     ];
 
-    $link = fn ($active) => 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition '
-        . ($active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white');
+    $link = fn ($active) => 'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all duration-200 '
+        . ($active ? 'bg-white text-[#1E5C4B] shadow-sm font-black' : 'text-emerald-100/75 hover:bg-white/10 hover:text-white');
 @endphp
 
-<nav class="space-y-1">
+<nav class="space-y-1.5">
     @foreach($main as [$label, $route, $pattern, $icon])
         <a href="{{ route($route) }}" class="{{ $link(request()->routeIs($pattern)) }}">
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icons[$icon] }}" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $icons[$icon] }}" />
             </svg>
             {{ $label }}
         </a>
@@ -47,11 +51,11 @@
 </nav>
 
 @if($isCompany)
-    <div class="mt-6" x-data="{ open: {{ request()->routeIs('admin.cms.*', 'admin.fbr.*') ? 'true' : 'false' }} }">
+    <div class="mt-6 pt-4 border-t border-emerald-800/40" x-data="{ open: {{ request()->routeIs('admin.cms.*', 'admin.fbr.*') ? 'true' : 'false' }} }">
         <button type="button" @click="open = !open"
-                class="flex w-full items-center justify-between px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Website &amp; tools
-            <span x-text="open ? '-' : '+'"></span>
+                class="flex w-full items-center justify-between px-3 text-[11px] font-bold uppercase tracking-wider text-emerald-300/80 hover:text-white">
+            <span>Website &amp; tools</span>
+            <span x-text="open ? '−' : '+'" class="text-xs"></span>
         </button>
         <nav x-show="open" x-cloak class="mt-2 space-y-1">
             @foreach($website as [$label, $route, $pattern])

@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             TaxYearAndSlabsSeeder::class,
+            ServicesEngineSeeder::class,
         ]);
     }
 }

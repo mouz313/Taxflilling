@@ -81,6 +81,16 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <x-ui.status-badge :status="$current->status" />
+                        @if($current->status === 'draft')
+                            <form method="POST" action="{{ route('client.returns.destroy', $current) }}" onsubmit="return confirm('Kya aap waqai is draft return ko delete karna chahte hain?');" class="inline">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg font-bold transition flex items-center space-x-1" title="Delete Draft Return">
+                                    <span>🗑️</span>
+                                    <span>Delete Draft</span>
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 </div>
 

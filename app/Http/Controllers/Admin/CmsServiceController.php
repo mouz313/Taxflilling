@@ -53,6 +53,7 @@ class CmsServiceController extends Controller
     public function create()
     {
         $categories = BusinessServiceItem::getCategories();
+        $serviceCategories = \App\Models\ServiceCategory::where('is_active', true)->orderBy('sort_order')->get();
         $service = new BusinessServiceItem([
             'currency' => 'Rs.',
             'turnaround' => '1 - 2 Working Days',
@@ -63,7 +64,7 @@ class CmsServiceController extends Controller
             'form_fields' => [],
         ]);
 
-        return view('admin.cms.services.form', compact('service', 'categories'));
+        return view('admin.cms.services.form', compact('service', 'categories', 'serviceCategories'));
     }
 
     /**
@@ -75,7 +76,8 @@ class CmsServiceController extends Controller
 
         $validated = $request->validate([
             'code' => ['nullable', 'string', 'max:50', 'unique:business_services,code'],
-            'category' => ['required', 'string', 'in:' . implode(',', array_keys($categories))],
+            'category' => ['required', 'string'],
+            'service_category_id' => ['nullable', 'exists:service_categories,id'],
             'heading' => ['required', 'string', 'max:255'],
             'urdu' => ['nullable', 'string', 'max:255'],
             'icon' => ['nullable', 'string', 'max:10'],
@@ -85,6 +87,7 @@ class CmsServiceController extends Controller
             'popular' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'desc' => ['nullable', 'string'],
+            'requirements' => ['nullable', 'array'],
             'requirements_text' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
@@ -100,23 +103,47 @@ class CmsServiceController extends Controller
             $code = $originalCode . '_' . $counter++;
         }
 
-        // Parse requirements from textarea (one per line)
+        // Process requirements: prefer structured array, fallback to text lines
         $requirements = [];
-        if (!empty($request->requirements_text)) {
-            $requirements = array_values(array_filter(
-                array_map('trim', explode("\n", $request->requirements_text))
-            ));
+        if (!empty($request->requirements) && is_array($request->requirements)) {
+            foreach ($request->requirements as $item) {
+                if (!empty($item['label'])) {
+                    $requirements[] = [
+                        'label' => trim($item['label']),
+                        'type' => $item['type'] ?? 'file', // file, text, textarea, number
+                        'file_types' => !empty($item['file_types']) ? (array) $item['file_types'] : ['jpg', 'jpeg', 'png', 'pdf'],
+                        'required' => !empty($item['required']),
+                    ];
+                }
+            }
+        } elseif (!empty($request->requirements_text)) {
+            $lines = array_values(array_filter(array_map('trim', explode("\n", $request->requirements_text))));
+            foreach ($lines as $line) {
+                $isText = preg_match('/phone|email|name|number|address|id/i', $line);
+                $requirements[] = [
+                    'label' => $line,
+                    'type' => $isText ? 'text' : 'file',
+                    'file_types' => ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+                    'required' => true,
+                ];
+            }
         }
 
-        $categoryName = $categories[$validated['category']]['name'] ?? ucfirst($validated['category']);
+        $categoryModel = !empty($validated['service_category_id']) 
+            ? \App\Models\ServiceCategory::find($validated['service_category_id'])
+            : \App\Models\ServiceCategory::where('slug', $validated['category'])->first();
+
+        $categoryKey = $categoryModel ? $categoryModel->slug : $validated['category'];
+        $categoryName = $categoryModel ? $categoryModel->name : ($categories[$validated['category']]['name'] ?? ucfirst($validated['category']));
 
         BusinessServiceItem::create([
             'code' => $code,
-            'category' => $validated['category'],
+            'service_category_id' => $categoryModel?->id,
+            'category' => $categoryKey,
             'category_name' => $categoryName,
             'heading' => $validated['heading'],
             'urdu' => $validated['urdu'] ?? null,
-            'icon' => $validated['icon'] ?: '💼',
+            'icon' => $validated['icon'] ?: ($categoryModel?->icon ?: '💼'),
             'fee' => $validated['fee'],
             'currency' => $validated['currency'] ?: 'Rs.',
             'turnaround' => $validated['turnaround'] ?: '1 - 2 Working Days',
@@ -137,7 +164,8 @@ class CmsServiceController extends Controller
     public function edit(BusinessServiceItem $service)
     {
         $categories = BusinessServiceItem::getCategories();
-        return view('admin.cms.services.form', compact('service', 'categories'));
+        $serviceCategories = \App\Models\ServiceCategory::where('is_active', true)->orderBy('sort_order')->get();
+        return view('admin.cms.services.form', compact('service', 'categories', 'serviceCategories'));
     }
 
     /**
@@ -149,7 +177,8 @@ class CmsServiceController extends Controller
 
         $validated = $request->validate([
             'heading' => ['required', 'string', 'max:255'],
-            'category' => ['required', 'string', 'in:' . implode(',', array_keys($categories))],
+            'category' => ['required', 'string'],
+            'service_category_id' => ['nullable', 'exists:service_categories,id'],
             'urdu' => ['nullable', 'string', 'max:255'],
             'icon' => ['nullable', 'string', 'max:10'],
             'fee' => ['required', 'numeric', 'min:0'],
@@ -158,26 +187,51 @@ class CmsServiceController extends Controller
             'popular' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'desc' => ['nullable', 'string'],
+            'requirements' => ['nullable', 'array'],
             'requirements_text' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        // Parse requirements from textarea
+        // Process requirements
         $requirements = [];
-        if (!empty($request->requirements_text)) {
-            $requirements = array_values(array_filter(
-                array_map('trim', explode("\n", $request->requirements_text))
-            ));
+        if (!empty($request->requirements) && is_array($request->requirements)) {
+            foreach ($request->requirements as $item) {
+                if (!empty($item['label'])) {
+                    $requirements[] = [
+                        'label' => trim($item['label']),
+                        'type' => $item['type'] ?? 'file',
+                        'file_types' => !empty($item['file_types']) ? (array) $item['file_types'] : ['jpg', 'jpeg', 'png', 'pdf'],
+                        'required' => !empty($item['required']),
+                    ];
+                }
+            }
+        } elseif (!empty($request->requirements_text)) {
+            $lines = array_values(array_filter(array_map('trim', explode("\n", $request->requirements_text))));
+            foreach ($lines as $line) {
+                $isText = preg_match('/phone|email|name|number|address|id/i', $line);
+                $requirements[] = [
+                    'label' => $line,
+                    'type' => $isText ? 'text' : 'file',
+                    'file_types' => ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+                    'required' => true,
+                ];
+            }
         }
 
-        $categoryName = $categories[$validated['category']]['name'] ?? ucfirst($validated['category']);
+        $categoryModel = !empty($validated['service_category_id']) 
+            ? \App\Models\ServiceCategory::find($validated['service_category_id'])
+            : \App\Models\ServiceCategory::where('slug', $validated['category'])->first();
+
+        $categoryKey = $categoryModel ? $categoryModel->slug : $validated['category'];
+        $categoryName = $categoryModel ? $categoryModel->name : ($categories[$validated['category']]['name'] ?? ucfirst($validated['category']));
 
         $service->update([
-            'category' => $validated['category'],
+            'service_category_id' => $categoryModel?->id ?? $service->service_category_id,
+            'category' => $categoryKey,
             'category_name' => $categoryName,
             'heading' => $validated['heading'],
             'urdu' => $validated['urdu'] ?? null,
-            'icon' => $validated['icon'] ?: '💼',
+            'icon' => $validated['icon'] ?: ($categoryModel?->icon ?: '💼'),
             'fee' => $validated['fee'],
             'currency' => $validated['currency'] ?: 'Rs.',
             'turnaround' => $validated['turnaround'] ?: '1 - 2 Working Days',

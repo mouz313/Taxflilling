@@ -1,4 +1,4 @@
-<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Business & Corporate Services" title="Business & Corporate Services - TaxFiler.pk">
+<x-dynamic-component :component="auth()->check() ? 'layouts.app' : 'layouts.guest'" header="Business & Corporate Services" :title="'Business & Corporate Services - ' . (setting('firm_name') ?? 'Tax Advisory')">
     <div
         class="max-w-7xl mx-auto space-y-6"
         x-data="{
@@ -13,6 +13,13 @@
             isCheckingCnic: false,
             cnicCheckResult: null,
             cnicCheckTimeout: null,
+
+            init() {
+                const autoApply = '{{ request('apply') }}';
+                if (autoApply && this.services[autoApply]) {
+                    this.openApply(autoApply);
+                }
+            },
 
             openApply(serviceCode) {
                 this.selectedService = this.services[serviceCode];
@@ -200,10 +207,15 @@
                             <!-- Requirements bullet points -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
                                 @foreach($service['requirements'] as $req)
-                                    <div class="flex items-start space-x-2">
-                                        <span class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">✓</span>
-                                        <span>{{ $req }}</span>
-                                    </div>
+                                    @php
+                                        $reqText = is_array($req) ? ($req['label'] ?? ($req['name'] ?? '')) : (is_string($req) ? $req : '');
+                                    @endphp
+                                    @if(!empty($reqText))
+                                        <div class="flex items-start space-x-2">
+                                            <span class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">✓</span>
+                                            <span>{{ $reqText }}</span>
+                                        </div>
+                                    @endif
                                 @endforeach
                             </div>
                         </div>
@@ -371,7 +383,32 @@
                     </button>
                 </div>
 
-                <form method="POST" action="{{ route('services.apply') }}" class="space-y-4">
+                <form method="POST" action="{{ route('services.apply') }}" enctype="multipart/form-data" class="space-y-4" x-data="{
+                    paymentMode: 'manual',
+                    isFileType(req) {
+                        if (typeof req === 'object' && req !== null) {
+                            return req.type === 'file';
+                        }
+                        if (typeof req === 'string') {
+                            return /copy|bill|agreement|doc|letterhead|statement|slip|photo|image|pdf|cnic|rent/i.test(req);
+                        }
+                        return false;
+                    },
+                    getLabel(req, idx) {
+                        if (typeof req === 'object' && req !== null) return req.label || ('Requirement #' + (idx + 1));
+                        return req;
+                    },
+                    getAccept(req) {
+                        if (typeof req === 'object' && req !== null && Array.isArray(req.file_types)) {
+                            return req.file_types.map(ext => '.' + ext).join(',');
+                        }
+                        return '.jpg,.jpeg,.png,.pdf,.doc,.docx';
+                    },
+                    isRequired(req) {
+                        if (typeof req === 'object' && req !== null && req.required !== undefined) return Boolean(req.required);
+                        return true;
+                    }
+                }">
                     @csrf
                     <input type="hidden" name="service_code" :value="selectedService?.code">
 
@@ -395,7 +432,7 @@
                                     x-model="applicantNameInput"
                                     required
                                     placeholder="Muhammad Ali"
-                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white"
+                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white font-medium"
                                 />
                             </div>
                             <div>
@@ -406,7 +443,7 @@
                                     value="{{ (Auth::check() && Auth::user()->role === 'client') ? Auth::user()->phone : '' }}"
                                     required
                                     placeholder="03001234567"
-                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white"
+                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white font-medium"
                                 />
                             </div>
                         </div>
@@ -419,7 +456,7 @@
                                     value="{{ (Auth::check() && Auth::user()->role === 'client') ? Auth::user()->email : '' }}"
                                     required
                                     placeholder="ali@example.com"
-                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white"
+                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white font-medium"
                                 />
                             </div>
                             <div>
@@ -437,12 +474,12 @@
                                     @input="onCnicInput($event.target.value)"
                                     required
                                     placeholder="42101-1234567-1"
-                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white font-mono"
+                                    class="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white font-mono font-medium"
                                 />
                             </div>
                         </div>
 
-                        <!-- LIVE FBR IRIS VERIFICATION BADGE (SHOWN BEFORE SUBMITTING) -->
+                        <!-- LIVE FBR IRIS VERIFICATION BADGE -->
                         <div x-show="isCheckingCnic" x-cloak class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 flex items-center space-x-2 text-xs text-blue-700 animate-pulse">
                             <span class="text-sm">🔍</span>
                             <span>FBR IRIS Database se CNIC verify ho raha hai...</span>
@@ -463,7 +500,6 @@
                                 </span>
                             </div>
 
-                            <!-- Verified Data Grid -->
                             <div class="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t" :class="cnicCheckResult?.is_active ? 'border-emerald-200/70' : 'border-amber-200/70'">
                                 <div>
                                     <span class="text-gray-500 block text-[10px]">FBR Legal Name:</span>
@@ -482,75 +518,115 @@
                                     <span class="font-medium text-gray-800" x-text="cnicCheckResult?.assigned_rto || 'Regional Tax Office'"></span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- Live Advisory Callout -->
-                            <div class="text-[10px] p-2 rounded-lg font-medium leading-relaxed" :class="cnicCheckResult?.is_active ? 'bg-emerald-100/70 text-emerald-900' : 'bg-amber-100/70 text-amber-950'">
-                                <template x-if="cnicCheckResult?.is_active">
-                                    <span>✓ <strong>Filer Record Verified:</strong> Aapka tax status active hai aur surcharge paid hai. Normal withholding tax rates apply honge.</span>
-                                </template>
-                                <template x-if="!cnicCheckResult?.is_active">
-                                    <span>⚠️ <strong>Non-Filer Alert:</strong> Yeh CNIC FBR par Inactive / Non-Filer show ho raha hai. Banking aur properties par double withholding tax se bachne ke liye application proceed karein.</span>
-                                </template>
+                    <!-- Dynamic Service Requirements (File Uploads & Text Fields) -->
+                    <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3" x-show="selectedService?.requirements && selectedService.requirements.length > 0">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Required Documents & Details</h4>
+                            <span class="text-[10px] text-gray-400">PDF, JPG, PNG, DOCX supported</span>
+                        </div>
+
+                        <div class="space-y-3">
+                            <template x-for="(req, idx) in (selectedService?.requirements || [])" :key="idx">
+                                <div class="bg-white p-3 rounded-xl border border-gray-200 space-y-1.5">
+                                    <label class="block text-xs font-semibold text-gray-800 flex items-center justify-between">
+                                        <div>
+                                            <span x-text="getLabel(req, idx)"></span>
+                                            <span x-show="isRequired(req)" class="text-rose-500">*</span>
+                                        </div>
+                                        <span class="text-[10px] font-mono text-gray-400" x-text="isFileType(req) ? '📁 Document File' : '✏️ Text Field'"></span>
+                                    </label>
+
+                                    <!-- FILE INPUT -->
+                                    <template x-if="isFileType(req)">
+                                        <div>
+                                            <input
+                                                type="file"
+                                                :name="'documents[' + getLabel(req, idx) + ']'"
+                                                :accept="getAccept(req)"
+                                                :required="isRequired(req)"
+                                                class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                                            />
+                                        </div>
+                                    </template>
+
+                                    <!-- TEXT INPUT -->
+                                    <template x-if="!isFileType(req)">
+                                        <div>
+                                            <input
+                                                type="text"
+                                                :name="'fields[' + getLabel(req, idx) + ']'"
+                                                :placeholder="'Enter ' + getLabel(req, idx)"
+                                                :required="isRequired(req)"
+                                                class="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Payment Mode Selection Section -->
+                    <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                            <span>Payment Method</span>
+                            <span class="text-blue-700 font-mono font-bold" x-text="'Fee: ' + selectedService?.currency + ' ' + Number(selectedService?.fee).toLocaleString()"></span>
+                        </h4>
+
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <label class="flex items-center space-x-2 p-2.5 rounded-xl border cursor-pointer transition"
+                                :class="paymentMode === 'manual' ? 'bg-white border-blue-500 shadow-xs text-blue-900 font-bold' : 'bg-white/60 border-slate-200 text-slate-600'">
+                                <input type="radio" name="payment_method" value="bank_transfer" x-model="paymentMode" class="text-blue-600">
+                                <span>🏦 Bank / Raast / Slip</span>
+                            </label>
+
+                            <label class="flex items-center space-x-2 p-2.5 rounded-xl border cursor-pointer transition"
+                                :class="paymentMode === 'online' ? 'bg-white border-blue-500 shadow-xs text-blue-900 font-bold' : 'bg-white/60 border-slate-200 text-slate-600'">
+                                <input type="radio" name="payment_method" value="online" x-model="paymentMode" class="text-blue-600">
+                                <span>💳 Online / Card</span>
+                            </label>
+                        </div>
+
+                        <!-- Manual Bank Details & Slip Upload -->
+                        <div x-show="paymentMode === 'manual'" class="pt-2 space-y-2 text-xs text-slate-700">
+                            <div class="p-3 bg-white rounded-xl border border-slate-200 text-[11px] space-y-1">
+                                <div class="font-bold text-slate-900">{{ setting('bank_name', 'Meezan Bank Limited') }}</div>
+                                <div>Title: <span class="font-semibold">{{ setting('bank_title', 'Tax Consultants PK Pvt Ltd') }}</span></div>
+                                <div>A/C: <span class="font-mono font-bold">{{ setting('bank_account', '01020304050607') }}</span> &bull; Raast: <span class="font-mono font-bold">{{ setting('raast_id', '03001234567') }}</span></div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Transaction Ref # (Optional)</label>
+                                    <input
+                                        type="text"
+                                        name="payment_reference"
+                                        placeholder="e.g. TRX12345678"
+                                        class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Attach Receipt / Slip (Optional)</label>
+                                    <input
+                                        type="file"
+                                        name="payment_proof"
+                                        accept="image/*,.pdf"
+                                        class="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-blue-700"
+                                    >
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Dynamic Service Specific Questions / Form Fields -->
-                    <div class="space-y-3">
-                        <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Service Specific Details</h4>
-
-                        <template x-for="(field, index) in (selectedService?.form_fields || [])" :key="index">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 mb-1">
-                                    <span x-text="field.label"></span>
-                                    <span x-show="field.required" class="text-rose-500">*</span>
-                                </label>
-
-                                <!-- Text Input -->
-                                <template x-if="field.type === 'text' || field.type === 'number'">
-                                    <input
-                                        :type="field.type"
-                                        :name="'fields[' + field.name + ']'"
-                                        :placeholder="field.placeholder || ''"
-                                        :required="field.required"
-                                        class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                                    />
-                                </template>
-
-                                <!-- Textarea Input -->
-                                <template x-if="field.type === 'textarea'">
-                                    <textarea
-                                        :name="'fields[' + field.name + ']'"
-                                        rows="2"
-                                        :placeholder="field.placeholder || ''"
-                                        :required="field.required"
-                                        class="w-full px-3.5 py-2 text-xs rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
-                                    ></textarea>
-                                </template>
-
-                                <!-- Select Dropdown -->
-                                <template x-if="field.type === 'select'">
-                                    <select
-                                        :name="'fields[' + field.name + ']'"
-                                        :required="field.required"
-                                        class="w-full px-3 py-2.5 text-xs rounded-xl border border-gray-200 focus:border-blue-500 outline-none bg-white"
-                                    >
-                                        <option value="">-- Muntakhab Karein --</option>
-                                        <template x-for="opt in field.options" :key="opt">
-                                            <option :value="opt" x-text="opt"></option>
-                                        </template>
-                                    </select>
-                                </template>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div class="pt-3">
+                    <div class="pt-2">
                         <button
                             type="submit"
                             class="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl text-xs transition shadow-md shadow-blue-600/20 cursor-pointer flex items-center justify-center space-x-2"
                         >
-                            <span>Submit Application & Proceed</span>
+                            <span>Submit Application &amp; Proceed</span>
                             <span>&rarr;</span>
                         </button>
                     </div>

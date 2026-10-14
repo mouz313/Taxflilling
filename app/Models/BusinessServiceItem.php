@@ -13,6 +13,7 @@ class BusinessServiceItem extends Model
 
     protected $fillable = [
         'code',
+        'service_category_id',
         'category',
         'category_name',
         'heading',
@@ -38,11 +39,34 @@ class BusinessServiceItem extends Model
         'sort_order' => 'integer',
     ];
 
+    public function categoryRelation()
+    {
+        return $this->belongsTo(ServiceCategory::class, 'service_category_id');
+    }
+
+    public function serviceRequests()
+    {
+        return $this->hasMany(ServiceRequest::class, 'business_service_id');
+    }
+
     /**
-     * Category Display Map
+     * Category Display Map (Dynamic fallback)
      */
     public static function getCategories(): array
     {
+        $dynamic = ServiceCategory::where('is_active', true)->orderBy('sort_order')->get();
+        if ($dynamic->isNotEmpty()) {
+            $mapped = [];
+            foreach ($dynamic as $cat) {
+                $mapped[$cat->slug] = [
+                    'id' => $cat->id,
+                    'name' => $cat->name,
+                    'icon' => $cat->icon,
+                ];
+            }
+            return $mapped;
+        }
+
         return [
             'income' => [
                 'name' => 'Income Tax Return',

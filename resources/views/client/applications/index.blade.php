@@ -156,6 +156,86 @@
                                 </div>
                             </div>
 
+                            {{-- Uploaded Client Documents List --}}
+                            @if(!empty($app->uploaded_files) && is_array($app->uploaded_files))
+                                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                                    <div class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Submitted Client Documents:</div>
+                                    <div class="flex flex-wrap gap-2 text-xs">
+                                        @foreach($app->uploaded_files as $docKey => $doc)
+                                            <a 
+                                                href="{{ asset('storage/' . ($doc['path'] ?? '')) }}" 
+                                                target="_blank"
+                                                class="inline-flex items-center space-x-1.5 px-3 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 hover:text-blue-600 hover:border-blue-300 transition shadow-2xs font-medium"
+                                            >
+                                                <span>📎</span>
+                                                <span>{{ $doc['label'] ?? (is_string($docKey) ? $docKey : 'Document') }}</span>
+                                                <span class="text-[10px] text-slate-400 font-mono">({{ round(($doc['size'] ?? 0) / 1024) }} KB)</span>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Payment Action Box if Pending --}}
+                            @if($app->payment_status !== 'paid')
+                                <div class="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-3" x-data="{ showUploadForm: false }">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div>
+                                            <div class="text-xs font-bold text-amber-900 flex items-center space-x-1.5">
+                                                <span>⚠️</span>
+                                                <span>Payment Pending (Fee: PKR {{ number_format($app->fee_amount, 0) }})</span>
+                                            </div>
+                                            <p class="text-[11px] text-amber-700 mt-0.5">
+                                                Bank transfer, Raast ya JazzCash se fee pay karein aur receipt yahan upload karein.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            @click="showUploadForm = !showUploadForm"
+                                            class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs self-start sm:self-auto"
+                                        >
+                                            <span x-text="showUploadForm ? 'Hide Payment Form' : 'Submit Payment Slip &rarr;'"></span>
+                                        </button>
+                                    </div>
+
+                                    <div x-show="showUploadForm" x-cloak class="pt-3 border-t border-amber-200/80 space-y-3">
+                                        <div class="p-3 bg-white rounded-lg border border-amber-200/70 text-xs text-slate-700 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <div><strong>Bank:</strong> {{ setting('bank_name', 'Meezan Bank Limited') }}</div>
+                                            <div><strong>Title:</strong> {{ setting('bank_title', 'Tax Consultants PK Pvt Ltd') }}</div>
+                                            <div><strong>A/C:</strong> <span class="font-mono font-bold">{{ setting('bank_account', '01020304050607') }}</span></div>
+                                            <div><strong>Raast ID:</strong> <span class="font-mono font-bold">{{ setting('raast_id', '03001234567') }}</span></div>
+                                        </div>
+
+                                        <form method="POST" action="{{ route('services.payment-proof', $app) }}" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-end gap-3">
+                                            @csrf
+                                            <div class="w-full sm:w-1/3">
+                                                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Payment Method</label>
+                                                <select name="payment_method" class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+                                                    <option value="bank_transfer">Bank Transfer (Meezan/Other)</option>
+                                                    <option value="raast">Raast Instant Payment</option>
+                                                    <option value="jazzcash">JazzCash</option>
+                                                    <option value="easypaisa">EasyPaisa</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="w-full sm:w-1/3">
+                                                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Transaction Ref #</label>
+                                                <input type="text" name="payment_reference" placeholder="e.g. TRX12345678" class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+                                            </div>
+
+                                            <div class="w-full sm:w-1/3">
+                                                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Upload Receipt / Slip</label>
+                                                <input type="file" name="payment_proof" accept="image/*,.pdf" class="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-100 file:text-amber-800">
+                                            </div>
+
+                                            <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shrink-0">
+                                                Upload &amp; Verify
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            @endif
+
                             {{-- Consultant Notes if any --}}
                             @if($app->admin_notes)
                                 <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900 flex items-start gap-2">

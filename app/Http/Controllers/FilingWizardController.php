@@ -60,7 +60,7 @@ class FilingWizardController extends Controller
                 $return->client->update($validated);
                 break;
 
-            // Step 5: Income Details (Salary)
+            // Step 5: Income Details (Salary, Business, Freelancing)
             case 5:
                 $salaryFreq = $request->input('salary_frequency', 'annual');
                 $inputSalary = (float) $request->input('gross_salary', 0);
@@ -77,24 +77,62 @@ class FilingWizardController extends Controller
                             'tax_deducted' => (float) $request->input('salary_tax_deducted', 0),
                         ]
                     );
-                    $return->recalculateTotals();
                 }
+
+                $businessRev = (float) $request->input('business_revenue', 0);
+                if ($businessRev > 0) {
+                    $return->incomeItems()->updateOrCreate(
+                        ['source_type' => 'business'],
+                        [
+                            'iris_box_code' => '7010',
+                            'employer_or_institution' => $request->input('business_name', 'Business / Freelance Services'),
+                            'gross_amount' => $businessRev,
+                            'exempt_amount' => (float) $request->input('business_expenses', 0),
+                            'tax_deducted' => (float) $request->input('business_tax_deducted', 0),
+                        ]
+                    );
+                }
+
+                $return->recalculateTotals();
                 break;
 
-            // Step 6: Tax Credits (Sec 61 Charity, VPS)
+            // Step 6: Adjustable Taxes (Mobile, Vehicle) & Tax Credits
             case 6:
-                if ($request->filled('charity_amount') && $request->input('charity_amount') > 0) {
+                if ($request->filled('mobile_tax') && (float) $request->input('mobile_tax') > 0) {
+                    $return->taxAdjustments()->updateOrCreate(
+                        ['adjustment_type' => 'mobile_sec236'],
+                        [
+                            'iris_box_code' => '64151',
+                            'description' => 'Mobile Phone Tax (Sec 236)',
+                            'tax_collected' => (float) $request->input('mobile_tax', 0),
+                        ]
+                    );
+                }
+
+                if ($request->filled('vehicle_tax') && (float) $request->input('vehicle_tax') > 0) {
+                    $return->taxAdjustments()->updateOrCreate(
+                        ['adjustment_type' => 'vehicle_sec231b'],
+                        [
+                            'iris_box_code' => '6405',
+                            'description' => 'Vehicle Token / Purchase Tax (Sec 231B)',
+                            'tax_collected' => (float) $request->input('vehicle_tax', 0),
+                        ]
+                    );
+                }
+
+                if ($request->filled('charity_amount') && (float) $request->input('charity_amount') > 0) {
                     $return->taxDeductions()->updateOrCreate(
                         ['deduction_type' => 'charity_sec61'],
                         [
                             'iris_box_code' => '9002',
                             'institution_or_fund' => $request->input('charity_ngo', 'Approved Charity'),
-                            'eligible_amount' => $request->input('charity_amount', 0),
-                            'computed_credit_or_deduction' => round($request->input('charity_amount', 0) * 0.15, 2),
+                            'eligible_amount' => (float) $request->input('charity_amount', 0),
+                            'computed_credit_or_deduction' => round((float) $request->input('charity_amount', 0) * 0.15, 2),
                         ]
                     );
-                    $return->recalculateTotals();
                 }
+
+                $return->recalculateTotals();
                 break;
 
             // Step 7: Tax Deductions (Zakat Sec 60)

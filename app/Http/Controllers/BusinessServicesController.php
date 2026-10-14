@@ -15,21 +15,36 @@ use Illuminate\Support\Str;
 class BusinessServicesController extends Controller
 {
     /**
-     * Display the 5-Category Business Services Marketplace Hub
+     * Display the Dynamic Business Services Marketplace Hub
      */
     public function index(Request $request)
     {
         $catalog = ServiceRequest::getCatalog();
         $tab = $request->get('tab', 'all');
 
-        $categories = [
-            'all' => ['name' => 'All Services', 'icon' => '🌐'],
-            'income' => ['name' => 'Income Tax Return', 'icon' => '💼'],
-            'sales' => ['name' => 'Sales Tax Registration', 'icon' => '📜'],
-            'company' => ['name' => 'Company\'s Registration', 'icon' => '🏢'],
-            'intellectual' => ['name' => 'Intellectual Property', 'icon' => '®️'],
-            'llc' => ['name' => 'USA LLC & Tax filing', 'icon' => '🇺🇸'],
-        ];
+        $categories = ['all' => ['name' => 'All Services', 'icon' => '🌐', 'slug' => 'all']];
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('service_categories')) {
+                $dbCategories = \App\Models\ServiceCategory::where('is_active', true)->orderBy('sort_order')->get();
+                foreach ($dbCategories as $cat) {
+                    $categories[$cat->slug] = [
+                        'name' => $cat->name,
+                        'icon' => $cat->icon,
+                        'slug' => $cat->slug,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        if (count($categories) === 1) {
+            $categories += [
+                'income' => ['name' => 'Income Tax Return', 'icon' => '💼', 'slug' => 'income'],
+                'sales' => ['name' => 'Sales Tax Registration', 'icon' => '📜', 'slug' => 'sales'],
+                'company' => ['name' => 'Company\'s Registration', 'icon' => '🏢', 'slug' => 'company'],
+                'intellectual' => ['name' => 'Intellectual Property', 'icon' => '®️', 'slug' => 'intellectual'],
+                'llc' => ['name' => 'USA LLC & Tax filing', 'icon' => '🇺🇸', 'slug' => 'llc'],
+            ];
+        }
 
         $counts = [
             'all' => count($catalog),
@@ -44,7 +59,7 @@ class BusinessServicesController extends Controller
     }
 
     /**
-     * Handle Service Application Form Submission
+     * Handle Service Application Form Submission with Dynamic File Uploads
      */
     public function storeRequest(Request $request)
     {
@@ -57,12 +72,19 @@ class BusinessServicesController extends Controller
             'applicant_email' => ['required', 'email', 'max:255'],
             'applicant_cnic' => ['nullable', 'string', 'max:50'],
             'fields' => ['nullable', 'array'],
+            'documents' => ['nullable', 'array'],
+            'documents.*' => ['nullable', 'file', 'max:10240'], // Max 10MB per file
+            'payment_method' => ['nullable', 'string'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ]);
 
         $serviceConfig = $catalog[$validated['service_code']] ?? null;
         if (! $serviceConfig) {
             return back()->with('error', 'Ghalat service code muntakhab kiya gaya.');
         }
+
+        $businessServiceItem = \App\Models\BusinessServiceItem::where('code', $validated['service_code'])->first();
 
         $consultancy = Consultancy::first() ?? Consultancy::create([
             'name' => 'Apex Tax & Corporate Advisory',
@@ -91,6 +113,11 @@ class BusinessServicesController extends Controller
                     'consultancy_id' => $consultancy->id,
                     'is_active' => true,
                 ]);
+            }
+
+            // Auto log-in guest client so their dashboard is accessible
+            if (!Auth::check()) {
+                Auth::login($user);
             }
         }
 
@@ -131,19 +158,49 @@ class BusinessServicesController extends Controller
             'auto_synced' => true,
         ];
 
+        // Process Dynamic Document File Uploads
+        $uploadedFiles = [];
+        if ($request->hasFile('documents')) {
+            foreach ($request->file('documents') as $key => $file) {
+                if ($file && $file->isValid()) {
+                    $storedPath = $file->store('service_documents/' . date('Ym'), 'public');
+                    $uploadedFiles[$key] = [
+                        'label' => is_string($key) ? $key : ($serviceConfig['requirements'][$key]['label'] ?? "Document #{$key}"),
+                        'original_name' => $file->getClientOriginalName(),
+                        'path' => $storedPath,
+                        'size' => $file->getSize(),
+                        'mime' => $file->getMimeType(),
+                        'uploaded_at' => now()->toIso8601String(),
+                    ];
+                }
+            }
+        }
+
+        // Process Payment Slip / Proof if uploaded
+        $paymentProofPath = null;
+        if ($request->hasFile('payment_proof') && $request->file('payment_proof')->isValid()) {
+            $paymentProofPath = $request->file('payment_proof')->store('payment_proofs/' . date('Ym'), 'public');
+        }
+
         $serviceRequest = ServiceRequest::create([
             'consultancy_id' => $consultancy->id,
             'user_id' => $user?->id,
             'client_id' => $client?->id,
+            'business_service_id' => $businessServiceItem?->id,
             'applicant_name' => $validated['applicant_name'],
             'applicant_phone' => $validated['applicant_phone'],
             'applicant_email' => $validated['applicant_email'],
+            'applicant_cnic' => $rawCnic,
             'service_code' => $serviceConfig['code'],
             'service_name' => $serviceConfig['heading'],
             'fee_amount' => $serviceConfig['fee'],
             'status' => 'submitted',
-            'payment_status' => 'pending',
+            'payment_status' => $paymentProofPath ? 'pending_verification' : 'pending',
+            'payment_method' => $validated['payment_method'] ?? ($paymentProofPath ? 'bank_transfer' : null),
+            'payment_reference' => $validated['payment_reference'] ?? null,
+            'payment_proof_path' => $paymentProofPath,
             'data_payload' => $dataPayload,
+            'uploaded_files' => $uploadedFiles,
         ]);
 
         return redirect()->route('services.success', ['tracking' => $serviceRequest->tracking_number])
@@ -199,18 +256,27 @@ class BusinessServicesController extends Controller
     public function submitProof(Request $request, ServiceRequest $serviceRequest)
     {
         $validated = $request->validate([
-            'payment_method' => ['required', 'in:1bill,jazzcash,easypaisa,bank_transfer'],
-            'payment_reference' => ['required', 'string', 'max:255'],
+            'payment_method' => ['required', 'string'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ]);
+
+        $proofPath = $serviceRequest->payment_proof_path;
+        if ($request->hasFile('payment_proof') && $request->file('payment_proof')->isValid()) {
+            $proofPath = $request->file('payment_proof')->store('payment_proofs/' . date('Ym'), 'public');
+        }
+
+        $ref = $validated['payment_reference'] ?: ($serviceRequest->payment_reference ?: 'SLIP-' . strtoupper(Str::random(6)));
 
         $serviceRequest->update([
             'payment_status' => 'pending_verification',
             'payment_method' => $validated['payment_method'],
-            'payment_reference' => $validated['payment_reference'],
+            'payment_reference' => $ref,
+            'payment_proof_path' => $proofPath,
             'status' => $serviceRequest->status === 'submitted' ? 'in_review' : $serviceRequest->status,
         ]);
 
-        return back()->with('success', "Payment reference {$validated['payment_reference']} jama ho chuka hai. Hamari team verify kar ke order ko Paid mark kar degi.");
+        return back()->with('success', "Payment receipt jama ho chuki hai. Hamari team verify kar ke order ko Paid mark kar degi.");
     }
 
     /**

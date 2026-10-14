@@ -1,11 +1,25 @@
 @import 'tailwindcss';
 
+@source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
-@theme {
-    --font-sans: 'Inter', system-ui, sans-serif;
-    --color-primary: #2563eb;
-    --color-primary-hover: #1d4ed8;
-    --color-primary-soft: #eff6ff;
+/* AdminLTE 3 Helper Overrides */
+[x-cloak] { 
+    display: none !important; 
+}
+
+
+/* Small Box Watermark Icon Fix */
+.small-box .icon {
+    top: 10px !important;
+    right: 15px !important;
+    font-size: 50px !important;
+    opacity: 0.25 !important;
+    z-index: 0 !important;
+}
+
+.small-box .inner {
+    position: relative !important;
+    z-index: 2 !important;
 }

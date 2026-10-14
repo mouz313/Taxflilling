@@ -21,6 +21,7 @@ class User extends Authenticatable
         'consultancy_id',
         'role',
         'phone',
+        'profile_photo_path',
         'is_active',
     ];
 

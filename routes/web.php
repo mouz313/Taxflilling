@@ -14,14 +14,15 @@ use Illuminate\Support\Facades\Route;
 */
 
 // 1. Public Website & Landing Page (Befiler Style)
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+Route::get('/', [\App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
 // Business Services Hub (All 5 Categories + Forms + Callbacks)
 Route::get('/services', [\App\Http\Controllers\BusinessServicesController::class, 'index'])->name('services.index');
 Route::get('/business-services', [\App\Http\Controllers\BusinessServicesController::class, 'index'])->name('business-services');
 Route::post('/services/apply', [\App\Http\Controllers\BusinessServicesController::class, 'storeRequest'])->name('services.apply');
+Route::get('/services/{code}/apply', function ($code) {
+    return redirect()->route('services.index', ['apply' => $code]);
+})->name('services.apply.code');
 Route::post('/services/check-cnic', [\App\Http\Controllers\BusinessServicesController::class, 'checkCnic'])->name('services.check-cnic');
 Route::post('/services/callback', [\App\Http\Controllers\BusinessServicesController::class, 'storeCallback'])->name('services.callback');
 Route::get('/services/success', [\App\Http\Controllers\BusinessServicesController::class, 'success'])->name('services.success');
@@ -58,6 +59,12 @@ Route::get('/contact', function () {
     }
     return view('contact', compact('consultancy'));
 })->name('contact');
+
+// Public Dynamic CMS Page Route
+Route::get('/p/{slug}', [\App\Http\Controllers\PageViewController::class, 'show'])->name('pages.show');
+
+// XML Sitemap for Search Engines (Google, Bing)
+Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
 
 // 2. Authentication (Login & Self-Service Registration)
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -123,27 +130,42 @@ Route::middleware('auth')->group(function () {
         Route::get('returns-export', [\App\Http\Controllers\Admin\ReportExportController::class, 'exportReturns'])->name('returns.export');
         Route::get('clients-export', [\App\Http\Controllers\Admin\ReportExportController::class, 'exportClients'])->name('clients.export');
 
-        // Legacy compatibility aliases
-        Route::post('admin/callbacks/{callback}/status', [\App\Http\Controllers\Admin\CallRequestController::class, 'updateStatus'])->name('admin.callbacks.legacy_status');
-        Route::post('admin/service-requests/{serviceRequest}/status', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'updateStatus'])->name('admin.service-requests.status');
-
         // Company Settings
         Route::get('settings/company', [CompanySettingsController::class, 'show'])->name('settings.company');
         Route::post('settings/company', [CompanySettingsController::class, 'update'])->name('settings.company.update');
 
-        // CMS Content Management (Services, FAQs, Firm Profile)
+        // CMS Content Management (Services, Categories, Pages, Menus, FAQs, Firm Profile)
         Route::prefix('admin/cms')->name('admin.cms.')->group(function () {
-            // 1. Business Services CMS
+            // 1. Service Categories CMS
+            Route::resource('categories', \App\Http\Controllers\Admin\ServiceCategoryController::class)->except(['show']);
+            Route::post('categories/{category}/toggle', [\App\Http\Controllers\Admin\ServiceCategoryController::class, 'toggle'])->name('categories.toggle');
+
+            // 2. Business Services CMS
             Route::resource('services', \App\Http\Controllers\Admin\CmsServiceController::class)->except(['show']);
             Route::post('services/{service}/toggle', [\App\Http\Controllers\Admin\CmsServiceController::class, 'toggle'])->name('services.toggle');
 
-            // 2. FAQs CMS
+            // 3. Website Pages CMS (About Us, Terms, Privacy)
+            Route::resource('pages', \App\Http\Controllers\Admin\PageController::class)->except(['show']);
+            Route::post('pages/{page}/toggle', [\App\Http\Controllers\Admin\PageController::class, 'toggle'])->name('pages.toggle');
+
+            // 4. Drag & Drop Navigation Menus CMS
+            Route::get('menus', [\App\Http\Controllers\Admin\MenuController::class, 'index'])->name('menus.index');
+            Route::post('menus', [\App\Http\Controllers\Admin\MenuController::class, 'store'])->name('menus.store');
+            Route::put('menus/{menu}', [\App\Http\Controllers\Admin\MenuController::class, 'update'])->name('menus.update');
+            Route::delete('menus/{menu}', [\App\Http\Controllers\Admin\MenuController::class, 'destroy'])->name('menus.destroy');
+            Route::post('menus/reorder', [\App\Http\Controllers\Admin\MenuController::class, 'reorder'])->name('menus.reorder');
+
+            // 5. FAQs CMS
             Route::resource('faqs', \App\Http\Controllers\Admin\CmsFaqController::class)->except(['show']);
             Route::post('faqs/{faq}/toggle', [\App\Http\Controllers\Admin\CmsFaqController::class, 'toggle'])->name('faqs.toggle');
 
-            // 3. Website Content & Firm Profile
+            // 6. Website Content & Firm Profile
             Route::get('site', [\App\Http\Controllers\Admin\CmsSiteContentController::class, 'index'])->name('site.index');
             Route::post('site', [\App\Http\Controllers\Admin\CmsSiteContentController::class, 'update'])->name('site.update');
+
+            // 7. SEO & Digital Marketing Management
+            Route::get('seo', [\App\Http\Controllers\Admin\SeoMarketingController::class, 'index'])->name('seo.index');
+            Route::post('seo', [\App\Http\Controllers\Admin\SeoMarketingController::class, 'update'])->name('seo.update');
         });
     });
 
