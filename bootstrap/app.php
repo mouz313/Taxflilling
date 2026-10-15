@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'payment/callback/*',
         ]);
 
+        $middleware->web(append: [
+            \App\Http\Middleware\SecurityHeaders::class,
+        ]);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);

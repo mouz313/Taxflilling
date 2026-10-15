@@ -58,8 +58,10 @@ class Client extends Model
                 }
             },
             set: function ($value) {
-                $this->attributes['cnic_hash'] = self::generateCnicHash($value);
-                return !empty($value) ? encrypt($value) : null;
+                return [
+                    'cnic' => !empty($value) ? encrypt($value) : null,
+                    'cnic_hash' => self::generateCnicHash($value),
+                ];
             }
         );
     }

@@ -570,6 +570,13 @@
 
                 <!-- TAB 5: CUSTOM MARKETING SCRIPTS -->
                 <div x-show="activeTab === 'scripts'" x-cloak class="space-y-5">
+                    <div class="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2">
+                        <span class="text-base font-bold">⚠️</span>
+                        <div>
+                            <strong>Security Alert:</strong> Yahan sirf trusted code (e.g. Google Analytics, Clarity, Meta Pixel) darj karein. Ghair-tasdeeq shuda ya anjan scripts website ki security aur integrity ko mutasir kar sakti hain.
+                        </div>
+                    </div>
+
                     <form method="POST" action="{{ route('admin.cms.seo.update') }}" class="space-y-4">
                         @csrf
                         <input type="hidden" name="section" value="scripts">

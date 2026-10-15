@@ -501,4 +501,206 @@ class SecurityAndOwnershipTest extends TestCase
         $response->assertSessionHasErrors('email');
         $this->assertGuest();
     }
+
+    public function test_checkout_returns_503_when_gateway_credentials_are_missing(): void
+    {
+        // Unset jazzcash merchant_id
+        Config::set('services.jazzcash.merchant_id', null);
+
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Fahad Mustafa',
+            'applicant_phone' => '03001234567',
+            'applicant_email' => 'fahad@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500,
+            'status' => 'submitted',
+            'payment_status' => 'pending',
+        ]);
+
+        $response = $this->postJson("/services/{$order->id}/checkout", [
+            'tracking_number' => $order->tracking_number,
+            'gateway' => 'jazzcash',
+        ]);
+
+        $response->assertStatus(503);
+        $response->assertJson([
+            'success' => false,
+            'message' => 'Online payment abhi available nahi. Bank transfer ya hamari team se rabta karein.',
+        ]);
+
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_staff_search_by_13_digit_cnic_matches_via_cnic_hash(): void
+    {
+        $staff = User::create([
+            'name' => 'Staff Manager',
+            'email' => 'manager@example.com',
+            'phone' => '03000000001',
+            'role' => 'company',
+            'password' => Hash::make('Secret123!'),
+            'consultancy_id' => $this->consultancy->id,
+            'is_active' => true,
+        ]);
+
+        $client = Client::create([
+            'consultancy_id' => $this->consultancy->id,
+            'name' => 'Searchable Client',
+            'cnic' => '42101-5555555-5',
+            'phone' => '03331234567',
+            'email' => 'searchable@example.com',
+        ]);
+
+        TaxReturn::create([
+            'consultancy_id' => $this->consultancy->id,
+            'client_id' => $client->id,
+            'tax_year_id' => $this->taxYear->id,
+            'filing_type' => 'original',
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->actingAs($staff)->getJson('/track/search?q=4210155555555');
+        $response->assertStatus(200);
+
+        $results = $response->json('results');
+        $this->assertNotEmpty($results);
+        $this->assertEquals('Searchable Client', $results[0]['applicant_name']);
+    }
+
+    public function test_resave_client_cnic_command_encrypts_and_hashes_and_dry_run_leaves_untouched(): void
+    {
+        // Insert a raw record directly with plaintext cnic and non-encrypted value
+        $id = \Illuminate\Support\Facades\DB::table('clients')->insertGetId([
+            'consultancy_id' => $this->consultancy->id,
+            'name' => 'Old Client',
+            'cnic' => '42101-7777777-7',
+            'cnic_hash' => 'old_hash_dummy',
+            'phone' => '03007777777',
+            'email' => 'old@example.com',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Dry-run should report 1 update needed but NOT change database
+        $this->artisan('clients:resave-cnic', ['--dry-run' => true])
+            ->expectsOutputToContain('Updated: 1, Failed: 0 (dry-run)')
+            ->assertSuccessful();
+
+        $rawBefore = \Illuminate\Support\Facades\DB::table('clients')->where('id', $id)->first();
+        $this->assertEquals('42101-7777777-7', $rawBefore->cnic);
+        $this->assertEquals('old_hash_dummy', $rawBefore->cnic_hash);
+
+        // Actual execution
+        $this->artisan('clients:resave-cnic')
+            ->expectsOutputToContain('Updated: 1, Failed: 0')
+            ->assertSuccessful();
+
+        $rawAfter = \Illuminate\Support\Facades\DB::table('clients')->where('id', $id)->first();
+        $this->assertNotEquals('42101-7777777-7', $rawAfter->cnic); // Encrypted
+        $this->assertEquals(Client::generateCnicHash('42101-7777777-7'), $rawAfter->cnic_hash);
+    }
+
+    public function test_security_headers_middleware_attaches_headers(): void
+    {
+        $response = $this->get('/');
+        $response->assertStatus(200);
+
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $response->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $response->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    }
+
+    public function test_payment_event_audit_logs_callback_and_rejections(): void
+    {
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Test Audited',
+            'applicant_phone' => '03009999999',
+            'applicant_email' => 'audit@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500,
+            'status' => 'submitted',
+            'payment_status' => 'pending',
+        ]);
+
+        // 1. Rejected callback due to bad hash
+        $this->postJson('/payment/callback/jazzcash', [
+            'pp_BillReference' => $order->tracking_number,
+            'pp_ResponseCode' => '000',
+            'pp_Amount' => 250000,
+            'pp_TxnRefNo' => 'BAD-HASH-TXN',
+            'pp_SecureHash' => 'WRONG_HASH',
+        ])->assertStatus(403);
+
+        $this->assertDatabaseHas('payment_events', [
+            'gateway' => 'jazzcash',
+            'tracking_number' => $order->tracking_number,
+            'result' => 'rejected',
+            'reason' => 'Invalid payment signature hash',
+        ]);
+
+        // 2. Successful callback
+        $payload = [
+            'pp_Amount' => '250000',
+            'pp_BillReference' => $order->tracking_number,
+            'pp_ResponseCode' => '000',
+            'pp_TxnRefNo' => 'AUDITED-TXN-101',
+        ];
+        $payload['pp_SecureHash'] = $this->generateJazzCashHash($payload);
+
+        $this->postJson('/payment/callback/jazzcash', $payload)->assertStatus(200);
+
+        $this->assertDatabaseHas('payment_events', [
+            'gateway' => 'jazzcash',
+            'tracking_number' => $order->tracking_number,
+            'result' => 'success',
+            'service_request_id' => $order->id,
+        ]);
+    }
+
+    public function test_client_cannot_download_another_clients_deliverable_file(): void
+    {
+        $userA = User::create([
+            'name' => 'User A',
+            'email' => 'usera@example.com',
+            'phone' => '03001111111',
+            'role' => 'client',
+            'password' => Hash::make('Secret123!'),
+            'consultancy_id' => $this->consultancy->id,
+            'is_active' => true,
+        ]);
+
+        $userB = User::create([
+            'name' => 'User B',
+            'email' => 'userb@example.com',
+            'phone' => '03002222222',
+            'role' => 'client',
+            'password' => Hash::make('Secret123!'),
+            'consultancy_id' => $this->consultancy->id,
+            'is_active' => true,
+        ]);
+
+        $orderB = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'user_id' => $userB->id,
+            'applicant_name' => 'User B',
+            'applicant_phone' => '03002222222',
+            'applicant_email' => 'userb@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'delivered_file_path' => 'deliverables/cert_b.pdf',
+        ]);
+
+        // Client A attempts to download Client B's certificate
+        $response = $this->actingAs($userA)->get("/applications/{$orderB->id}/download");
+        $response->assertStatus(403);
+    }
 }

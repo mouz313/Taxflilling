@@ -118,7 +118,7 @@
                     this.atlResult = null;
                 }
             } catch (err) {
-                this.atlError = 'FBR IRIS connection timeout. Please try again.';
+                this.atlError = 'Tasdeeq ke dauraan masla pesh aya. Barah-e-karam dobara koshish karein.';
                 this.atlResult = null;
             } finally {
                 this.isCheckingAtl = false;
@@ -311,17 +311,17 @@
 
                 <!-- Right Hero: Dual Quick Tools Card -->
                 <div class="lg:col-span-5 space-y-4">
-                    <!-- Tool 1: Live FBR ATL Check -->
+                    <!-- Tool 1: ATL Status Check -->
                     <div class="bg-white rounded-2xl p-6 text-slate-900 shadow-2xl border border-slate-100">
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center space-x-2">
-                                <span class="p-2 rounded-lg bg-emerald-50 text-emerald-600 text-lg">🔍</span>
+                                <span class="p-2 rounded-lg bg-blue-50 text-blue-600 text-lg">🔍</span>
                                 <div>
-                                    <h3 class="text-sm font-bold text-slate-900">Live FBR ATL Status Check</h3>
+                                    <h3 class="text-sm font-bold text-slate-900">Active Taxpayer Status Check</h3>
                                     <p class="text-[11px] text-slate-500">Active Taxpayer List Verification</p>
                                 </div>
                             </div>
-                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase">Live IRIS</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">Verification Tool</span>
                         </div>
 
                         <div class="space-y-3">
@@ -330,7 +330,7 @@
                                     type="text"
                                     x-model="quickCnic"
                                     placeholder="Enter 13-digit CNIC (e.g. 42101-1234567-1)"
-                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 font-mono"
                                     @keydown.enter.prevent="checkAtl()"
                                 />
                             </div>
@@ -339,13 +339,13 @@
                                 type="button"
                                 @click="checkAtl()"
                                 :disabled="isCheckingAtl"
-                                class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-2"
+                                class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer"
                             >
                                 <template x-if="isCheckingAtl">
-                                    <span>Verifying with FBR...</span>
+                                    <span>Check kiya ja raha hai...</span>
                                 </template>
                                 <template x-if="!isCheckingAtl">
-                                    <span>Check ATL Status &rarr;</span>
+                                    <span>Check Status &rarr;</span>
                                 </template>
                             </button>
 
@@ -356,25 +356,41 @@
 
                             <!-- ATL Result Display -->
                             <template x-if="atlResult">
-                                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                                <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-xs space-y-3">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-slate-500 font-medium">Status:</span>
+                                        <span class="text-slate-600 font-medium">Status:</span>
                                         <span
-                                            class="font-bold px-2 py-0.5 rounded text-[11px]"
-                                            :class="atlResult.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                            x-text="atlResult.is_active ? 'Active Filer (ATL)' : 'Inactive / Non-Filer'"
+                                            class="font-bold px-2.5 py-0.5 rounded text-[11px] bg-amber-100 text-amber-900 border border-amber-200"
+                                            x-text="atlResult.status"
                                         ></span>
                                     </div>
                                     <div class="flex items-center justify-between">
-                                        <span class="text-slate-500 font-medium">CNIC:</span>
+                                        <span class="text-slate-600 font-medium">CNIC:</span>
                                         <span class="font-mono font-bold text-slate-800" x-text="atlResult.cnic"></span>
                                     </div>
-                                    <div class="pt-2 border-t border-slate-200 flex justify-between items-center">
-                                        <span class="text-[11px] text-slate-500" x-text="atlResult.is_active ? 'You enjoy 50% tax rebate on transactions.' : 'File your return now to activate ATL.'"></span>
-                                        <a href="{{ route('services.index') }}" class="text-blue-600 font-bold hover:underline">File Return &rarr;</a>
+                                    <p class="text-slate-700 text-[11px] leading-relaxed" x-text="atlResult.message"></p>
+                                    <div class="pt-2 border-t border-amber-200/80 flex flex-col sm:flex-row gap-2 justify-between items-center">
+                                        <button
+                                            type="button"
+                                            @click="openCallback('ATL Verification', 'atl_check')"
+                                            class="w-full sm:w-auto px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition text-center cursor-pointer"
+                                        >
+                                            Consultant se tasdeeq karwayein &rarr;
+                                        </button>
+                                        <a
+                                            href="https://wa.me/923001234567?text=Assalam%20o%20Alaikum,%20mujhe%20apna%20ATL%20status%20verify%20karwana%20hai."
+                                            target="_blank"
+                                            class="text-emerald-700 font-bold hover:underline text-[11px]"
+                                        >
+                                            💬 WhatsApp
+                                        </a>
                                     </div>
                                 </div>
                             </template>
+
+                            <p class="text-[10px] text-slate-400 text-center pt-1">
+                                Yeh tool FBR ka official status nahi dikhata. Tasdeeq ke liye hamari team se rabta karein.
+                            </p>
                         </div>
                     </div>
 

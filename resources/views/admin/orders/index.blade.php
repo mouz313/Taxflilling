@@ -519,8 +519,8 @@
                                             <div>
                                                 <span class="font-bold text-slate-800" x-text="'Ref: ' + (selectedOrder?.payment_reference || 'Slip Uploaded')"></span>
                                             </div>
-                                            <a :href="'/storage/' + selectedOrder?.payment_proof_path" target="_blank" class="px-2.5 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 text-xs">
-                                                Inspect Slip ↗
+                                            <a :href="'{{ route('services.proof-file', ['serviceRequest' => '__ID__']) }}'.replace('__ID__', selectedOrder?.id)" target="_blank" rel="noopener" class="px-2.5 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 text-xs">
+                                                Proof dekhein ↗
                                             </a>
                                         </div>
                                     </div>

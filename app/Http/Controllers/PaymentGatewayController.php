@@ -34,10 +34,19 @@ class PaymentGatewayController extends Controller
 
         $gateway = $validated['gateway'];
 
-        $details = match ($gateway) {
-            'jazzcash' => $this->paymentService->createJazzCashCheckout($serviceRequest, $validated['mobile_number'] ?? ''),
-            'bank_transfer' => $this->paymentService->getBankTransferDetails($serviceRequest),
-        };
+        try {
+            $details = match ($gateway) {
+                'jazzcash'      => $this->paymentService->createJazzCashCheckout($serviceRequest, $validated['mobile_number'] ?? ''),
+                'bank_transfer' => $this->paymentService->getBankTransferDetails($serviceRequest),
+            };
+        } catch (\RuntimeException $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Online payment abhi available nahi. Bank transfer ya hamari team se rabta karein.',
+            ], 503);
+        }
 
         return response()->json([
             'success' => true,
@@ -54,24 +63,30 @@ class PaymentGatewayController extends Controller
             abort(405, 'Only POST webhooks are accepted.');
         }
 
+        $billReference = (string) $request->input('pp_BillReference');
+        $ip = $request->ip();
+
         // EasyPaisa / 1Bill: apna verified handler banne tak band
         if ($gateway !== 'jazzcash') {
+            \App\Models\PaymentEvent::logEvent($gateway, null, 'rejected', 'Gateway callback not enabled', null, $ip, $request->all());
             return response()->json(['error' => 'Gateway callback not enabled.'], 501);
         }
 
         // 1. Pehle signature (order lookup se pehle, taake info leak na ho)
         if (! $this->paymentService->verifyJazzCashHash($request->all())) {
+            \App\Models\PaymentEvent::logEvent('jazzcash', $billReference ?: null, 'rejected', 'Invalid payment signature hash', null, $ip, $request->except(['pp_SecureHash']));
             return response()->json(['error' => 'Invalid payment signature hash.'], 403);
         }
 
-        $billReference = (string) $request->input('pp_BillReference');
         $order = ServiceRequest::where('tracking_number', $billReference)->first();
         if (! $order) {
+            \App\Models\PaymentEvent::logEvent('jazzcash', $billReference, 'rejected', 'Order not found', null, $ip);
             return response()->json(['error' => 'Order not found.'], 404);
         }
 
         // 2. Gateway ne success kaha?
         if ($request->input('pp_ResponseCode') !== '000') {
+            \App\Models\PaymentEvent::logEvent('jazzcash', $billReference, 'rejected', 'Transaction declined: ' . $request->input('pp_ResponseCode'), $order->id, $ip);
             return response()->json(['error' => 'Transaction declined by gateway.'], 400);
         }
 
@@ -79,11 +94,13 @@ class PaymentGatewayController extends Controller
         $received = (int) $request->input('pp_Amount');
         $expected = (int) round($order->fee_amount * 100);
         if ($received !== $expected) {
+            \App\Models\PaymentEvent::logEvent('jazzcash', $billReference, 'rejected', 'Amount mismatch: received ' . $received . ' expected ' . $expected, $order->id, $ip);
             return response()->json(['error' => 'Paid amount does not match order fee.'], 422);
         }
 
         $txnRef = (string) $request->input('pp_TxnRefNo');
         if ($txnRef === '') {
+            \App\Models\PaymentEvent::logEvent('jazzcash', $billReference, 'rejected', 'Missing transaction reference', $order->id, $ip);
             return response()->json(['error' => 'Missing transaction reference.'], 400);
         }
 
@@ -104,6 +121,15 @@ class PaymentGatewayController extends Controller
 
             return 'success';
         });
+
+        \App\Models\PaymentEvent::logEvent(
+            'jazzcash',
+            $billReference,
+            $result,
+            $result === 'already_processed' ? 'Duplicate callback processed idempotently' : 'Payment verified successfully',
+            $order->id,
+            $ip
+        );
 
         return $request->wantsJson()
             ? response()->json(['status' => $result, 'reference' => $txnRef])

@@ -105,9 +105,11 @@ class TrackController extends Controller
             ->whereHas('client', function ($cq) use ($q, $cleanNumbers) {
                 $cq->where('name', 'like', "%{$q}%")
                    ->orWhere('email', 'like', "%{$q}%");
-                if (!empty($cleanNumbers)) {
-                    $cq->orWhere('phone', 'like', "%{$cleanNumbers}%")
-                       ->orWhere('cnic', 'like', "%{$cleanNumbers}%");
+
+                if (strlen($cleanNumbers) === 13) {
+                    $cq->orWhere('cnic_hash', \App\Models\Client::generateCnicHash($cleanNumbers));
+                } elseif ($cleanNumbers !== '') {
+                    $cq->orWhere('phone', 'like', "%{$cleanNumbers}%");
                 }
             })
             ->latest()
