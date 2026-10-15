@@ -8,9 +8,11 @@ use App\Models\ServiceRequest;
 use App\Models\TaxReturn;
 use App\Models\TaxYear;
 use App\Models\User;
-use App\Services\PaymentGatewayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class SecurityAndOwnershipTest extends TestCase
@@ -19,10 +21,15 @@ class SecurityAndOwnershipTest extends TestCase
 
     protected Consultancy $consultancy;
     protected TaxYear $taxYear;
+    protected string $salt = 'test_secure_salt_123';
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        Config::set('services.jazzcash.salt', $this->salt);
+        Config::set('services.jazzcash.merchant_id', 'MC12345');
+        Config::set('services.jazzcash.password', 'pass123');
 
         $this->consultancy = Consultancy::create([
             'name' => 'Apex Advisory',
@@ -37,6 +44,20 @@ class SecurityAndOwnershipTest extends TestCase
             'filing_deadline' => '2026-09-30',
             'is_active' => true,
         ]);
+    }
+
+    protected function generateJazzCashHash(array $payload, ?string $salt = null): string
+    {
+        $salt = $salt ?? $this->salt;
+        unset($payload['pp_SecureHash']);
+        ksort($payload);
+        $hashString = $salt;
+        foreach ($payload as $k => $v) {
+            if ($v !== '' && str_starts_with($k, 'pp_')) {
+                $hashString .= '&' . $v;
+            }
+        }
+        return strtoupper(hash_hmac('sha256', $hashString, $salt));
     }
 
     public function test_unauthenticated_user_cannot_mark_service_request_paid(): void
@@ -59,7 +80,7 @@ class SecurityAndOwnershipTest extends TestCase
         ]);
         $response->assertStatus(404);
 
-        // Attempting mark-paid without company authentication fails with 302/403
+        // Attempting mark-paid without company authentication fails with redirect to login
         $markPaidResponse = $this->post("/services/{$order->id}/mark-paid");
         $markPaidResponse->assertRedirect('/login');
 
@@ -67,7 +88,7 @@ class SecurityAndOwnershipTest extends TestCase
         $this->assertEquals('pending', $order->fresh()->payment_status);
     }
 
-    public function test_submitting_payment_proof_does_not_mark_order_paid(): void
+    public function test_submitting_payment_proof_does_not_mark_order_paid_and_requires_ownership(): void
     {
         $order = ServiceRequest::create([
             'consultancy_id' => $this->consultancy->id,
@@ -81,7 +102,19 @@ class SecurityAndOwnershipTest extends TestCase
             'payment_status' => 'pending',
         ]);
 
+        // Mismatched phone last 4 digits fails with 404
+        $failResponse = $this->post("/services/{$order->id}/proof", [
+            'tracking_number' => $order->tracking_number,
+            'phone_last4' => '9999',
+            'payment_method' => 'bank_transfer',
+            'payment_reference' => 'IBFT-123456',
+        ]);
+        $failResponse->assertStatus(404);
+
+        // Valid phone last 4 digits succeeds
         $response = $this->post("/services/{$order->id}/proof", [
+            'tracking_number' => $order->tracking_number,
+            'phone_last4' => '4567',
             'payment_method' => 'bank_transfer',
             'payment_reference' => 'IBFT-123456',
         ]);
@@ -91,6 +124,83 @@ class SecurityAndOwnershipTest extends TestCase
         $this->assertEquals('pending_verification', $freshOrder->payment_status);
         $this->assertEquals('IBFT-123456', $freshOrder->payment_reference);
         $this->assertNotEquals('paid', $freshOrder->payment_status);
+    }
+
+    public function test_proof_submission_on_already_paid_order_aborts_409(): void
+    {
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Ali Khan',
+            'applicant_phone' => '03001234567',
+            'applicant_email' => 'ali@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500,
+            'status' => 'submitted',
+            'payment_status' => 'paid',
+        ]);
+
+        $response = $this->post("/services/{$order->id}/proof", [
+            'tracking_number' => $order->tracking_number,
+            'phone_last4' => '4567',
+            'payment_method' => 'bank_transfer',
+            'payment_reference' => 'IBFT-123456',
+        ]);
+
+        $response->assertStatus(409);
+    }
+
+    public function test_proof_file_stored_on_private_disk_and_viewable_only_by_staff(): void
+    {
+        Storage::fake('local');
+
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Ali Khan',
+            'applicant_phone' => '03001234567',
+            'applicant_email' => 'ali@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500,
+            'status' => 'submitted',
+            'payment_status' => 'pending',
+        ]);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'proof');
+        file_put_contents($tempFile, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF");
+        $file = new UploadedFile($tempFile, 'receipt.pdf', 'application/pdf', null, true);
+
+        $response = $this->from("/services/{$order->id}/checkout")->post("/services/{$order->id}/proof", [
+            'tracking_number' => $order->tracking_number,
+            'phone_last4' => '4567',
+            'payment_method' => 'bank_transfer',
+            'payment_reference' => 'IBFT-123456',
+            'proof_file' => $file,
+        ]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHas('success');
+        $freshOrder = $order->fresh();
+        $this->assertNotNull($freshOrder->payment_proof_path);
+        Storage::disk('local')->assertExists($freshOrder->payment_proof_path);
+
+        // Guest cannot access proof-file route
+        $guestView = $this->get("/services/{$order->id}/proof-file");
+        $guestView->assertRedirect('/login');
+
+        // Staff can access proof-file route
+        $staff = User::create([
+            'name' => 'Staff User',
+            'email' => 'staff@example.com',
+            'phone' => '03000000000',
+            'role' => 'company',
+            'password' => Hash::make('Secret123!'),
+            'consultancy_id' => $this->consultancy->id,
+            'is_active' => true,
+        ]);
+
+        $staffView = $this->actingAs($staff)->get("/services/{$order->id}/proof-file");
+        $staffView->assertStatus(200);
     }
 
     public function test_client_cannot_access_or_edit_another_clients_return_idor(): void
@@ -168,6 +278,27 @@ class SecurityAndOwnershipTest extends TestCase
         $ownResponse->assertStatus(200);
     }
 
+    public function test_payment_callback_rejects_non_jazzcash_gateways(): void
+    {
+        $response = $this->post('/payment/callback/easypaisa', [
+            'tracking_number' => '123456789',
+        ]);
+        // Route regex limits {gateway} to jazzcash, or controller rejects
+        $this->assertTrue(in_array($response->status(), [404, 501]));
+    }
+
+    public function test_payment_callback_rejects_missing_salt_fail_closed(): void
+    {
+        Config::set('services.jazzcash.salt', null);
+
+        $response = $this->postJson('/payment/callback/jazzcash', [
+            'pp_BillReference' => 'ABC',
+            'pp_SecureHash' => 'SOME_HASH',
+        ]);
+
+        $response->assertStatus(403);
+    }
+
     public function test_payment_callback_rejects_invalid_hash_signature(): void
     {
         $order = ServiceRequest::create([
@@ -182,7 +313,6 @@ class SecurityAndOwnershipTest extends TestCase
             'payment_status' => 'pending',
         ]);
 
-        // Attempting with wrong HMAC signature
         $response = $this->postJson('/payment/callback/jazzcash', [
             'pp_BillReference' => $order->tracking_number,
             'pp_ResponseCode' => '000',
@@ -195,7 +325,34 @@ class SecurityAndOwnershipTest extends TestCase
         $this->assertEquals('pending', $order->fresh()->payment_status);
     }
 
-    public function test_payment_callback_verifies_valid_hash_signature(): void
+    public function test_payment_callback_rejects_amount_mismatch(): void
+    {
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Test Applicant',
+            'applicant_phone' => '03009999999',
+            'applicant_email' => 'applicant@example.com',
+            'service_code' => 'ntn_individual',
+            'service_name' => 'NTN Registration',
+            'fee_amount' => 2500, // PKR 2500 = 250000 paisa
+            'status' => 'submitted',
+            'payment_status' => 'pending',
+        ]);
+
+        $payload = [
+            'pp_Amount' => '100000', // Only 1000 PKR instead of 2500
+            'pp_BillReference' => $order->tracking_number,
+            'pp_ResponseCode' => '000',
+            'pp_TxnRefNo' => 'TXN-WRONG-AMT',
+        ];
+        $payload['pp_SecureHash'] = $this->generateJazzCashHash($payload);
+
+        $response = $this->postJson('/payment/callback/jazzcash', $payload);
+        $response->assertStatus(422);
+        $this->assertEquals('pending', $order->fresh()->payment_status);
+    }
+
+    public function test_payment_callback_verifies_valid_hash_signature_and_is_idempotent(): void
     {
         $order = ServiceRequest::create([
             'consultancy_id' => $this->consultancy->id,
@@ -215,27 +372,25 @@ class SecurityAndOwnershipTest extends TestCase
             'pp_ResponseCode' => '000',
             'pp_TxnRefNo' => 'TXN-REAL-789',
         ];
+        $payload['pp_SecureHash'] = $this->generateJazzCashHash($payload);
 
-        // Generate authentic hash matching PaymentGatewayService
-        $salt = config('services.jazzcash.salt') ?? 'sandbox_salt_key_123';
-        ksort($payload);
-        $hashString = $salt;
-        foreach ($payload as $k => $v) {
-            if ($v !== '' && str_starts_with($k, 'pp_')) {
-                $hashString .= '&' . $v;
-            }
-        }
-        $payload['pp_SecureHash'] = strtoupper(hash_hmac('sha256', $hashString, $salt));
-
+        // First callback succeeds
         $response = $this->postJson('/payment/callback/jazzcash', $payload);
-
         $response->assertStatus(200);
+        $response->assertJson(['status' => 'success', 'reference' => 'TXN-REAL-789']);
+
         $freshOrder = $order->fresh();
         $this->assertEquals('paid', $freshOrder->payment_status);
+        $this->assertEquals('in_review', $freshOrder->status);
         $this->assertEquals('TXN-REAL-789', $freshOrder->payment_reference);
+
+        // Duplicate concurrent callback returns already_processed
+        $duplicateResponse = $this->postJson('/payment/callback/jazzcash', $payload);
+        $duplicateResponse->assertStatus(200);
+        $duplicateResponse->assertJson(['status' => 'already_processed']);
     }
 
-    public function test_public_ajax_search_masks_pii(): void
+    public function test_guest_search_endpoint_returns_empty_results(): void
     {
         ServiceRequest::create([
             'consultancy_id' => $this->consultancy->id,
@@ -251,17 +406,99 @@ class SecurityAndOwnershipTest extends TestCase
 
         $response = $this->getJson('/track/search?q=Kashif');
         $response->assertStatus(200);
+        $this->assertEquals([], $response->json('results'));
+    }
 
-        $results = $response->json('results');
-        $this->assertNotEmpty($results);
+    public function test_track_page_requires_exact_number_and_phone_verification(): void
+    {
+        $order = ServiceRequest::create([
+            'consultancy_id' => $this->consultancy->id,
+            'applicant_name' => 'Kashif Mehmood',
+            'applicant_phone' => '03001234567',
+            'applicant_email' => 'kashif@example.com',
+            'service_code' => 'secp_pvt_ltd',
+            'service_name' => 'Company Registration',
+            'fee_amount' => 15000,
+            'status' => 'submitted',
+            'payment_status' => 'pending',
+        ]);
 
-        // Name, email, and phone must not be plain text
-        $first = $results[0];
-        $this->assertNotEquals('Kashif Mehmood', $first['applicant_name']);
-        $this->assertStringContainsString('*', $first['applicant_name']);
-        $this->assertNotEquals('kashif@example.com', $first['applicant_email']);
-        $this->assertStringContainsString('*', $first['applicant_email']);
-        $this->assertNotEquals('03001234567', $first['applicant_phone']);
-        $this->assertStringContainsString('*', $first['applicant_phone']);
+        // Wrong phone last 4 digits fails to match
+        $mismatchResponse = $this->get('/track?q=' . $order->tracking_number . '&verify=9999');
+        $mismatchResponse->assertStatus(200);
+        $mismatchResponse->assertSee('Record nahi mila ya verification ghalat hai.');
+
+        // Correct phone last 4 digits matches
+        $matchResponse = $this->get('/track?q=' . $order->tracking_number . '&verify=4567');
+        $matchResponse->assertStatus(200);
+        $matchResponse->assertSee($order->tracking_number);
+        $matchResponse->assertSee('Company Registration');
+    }
+
+    public function test_check_cnic_returns_no_pii(): void
+    {
+        $client = Client::create([
+            'consultancy_id' => $this->consultancy->id,
+            'name' => 'Super Secret Client',
+            'cnic' => '42101-1234567-1',
+            'ntn' => '7654321-0',
+            'phone' => '03001234567',
+            'email' => 'secret@example.com',
+        ]);
+
+        $response = $this->postJson('/services/check-cnic', [
+            'cnic' => '42101-1234567-1',
+        ]);
+
+        $response->assertStatus(200);
+        $data = $response->json();
+
+        // Must not contain name, email, NTN, or existing status
+        $this->assertArrayNotHasKey('client', $data);
+        $this->assertArrayNotHasKey('name', $data);
+        $this->assertArrayNotHasKey('ntn', $data);
+        $this->assertArrayNotHasKey('exists', $data);
+        $this->assertTrue($data['valid']);
+    }
+
+    public function test_client_where_cnic_matches_via_blind_index(): void
+    {
+        $client = Client::create([
+            'consultancy_id' => $this->consultancy->id,
+            'name' => 'Ahmed Raza',
+            'cnic' => '42101-9876543-1',
+            'phone' => '03121234567',
+            'email' => 'ahmed@example.com',
+        ]);
+
+        $found = Client::whereCnic('42101-9876543-1')->first();
+        $this->assertNotNull($found);
+        $this->assertEquals($client->id, $found->id);
+
+        // Also works with unformatted 13 digits
+        $foundPlain = Client::whereCnic('4210198765431')->first();
+        $this->assertNotNull($foundPlain);
+        $this->assertEquals($client->id, $foundPlain->id);
+    }
+
+    public function test_inactive_user_cannot_login(): void
+    {
+        $inactive = User::create([
+            'name' => 'Deactivated User',
+            'email' => 'deactive@example.com',
+            'phone' => '03009999000',
+            'role' => 'client',
+            'password' => Hash::make('Secret123!'),
+            'consultancy_id' => $this->consultancy->id,
+            'is_active' => false,
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => 'deactive@example.com',
+            'password' => 'Secret123!',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertGuest();
     }
 }

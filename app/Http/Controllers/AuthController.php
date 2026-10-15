@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -32,21 +33,18 @@ class AuthController extends Controller
 
         $loginField = filter_var($request->email, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
 
-        if (Auth::attempt([$loginField => $request->email, 'password' => $request->password], $request->boolean('remember'))) {
+        if (Auth::attempt([$loginField => $request->email, 'password' => $request->password, 'is_active' => true], $request->boolean('remember'))) {
             $request->session()->regenerate();
-
-            if (! Auth::user()->is_active) {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                throw ValidationException::withMessages([
-                    'email' => 'Aapka account non-active hai. Barah-e-karam management se rabta karein.',
-                ]);
-            }
 
             return redirect()->intended(route('dashboard'))
                 ->with('success', 'Khush Amdeed! Aap kamiyabi se login ho gaye hain.');
+        }
+
+        $user = User::where($loginField, $request->email)->first();
+        if ($user && ! $user->is_active && Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => 'Aapka account non-active hai. Barah-e-karam management se rabta karein.',
+            ]);
         }
 
         throw ValidationException::withMessages([
@@ -68,7 +66,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:30'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', Password::min(8), 'confirmed'],
             'name' => ['nullable', 'string', 'max:255'],
             'cnic' => ['required', 'string'],
             'filer_type' => ['nullable', 'in:fresh_filer,already_filer'],

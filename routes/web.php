@@ -23,19 +23,34 @@ Route::post('/services/apply', [\App\Http\Controllers\BusinessServicesController
 Route::get('/services/{code}/apply', function ($code) {
     return redirect()->route('services.index', ['apply' => $code]);
 })->name('services.apply.code');
-Route::post('/services/check-cnic', [\App\Http\Controllers\BusinessServicesController::class, 'checkCnic'])->name('services.check-cnic');
+Route::post('/services/check-cnic', [\App\Http\Controllers\BusinessServicesController::class, 'checkCnic'])
+    ->middleware('throttle:public-lookup')
+    ->name('services.check-cnic');
 Route::post('/services/callback', [\App\Http\Controllers\BusinessServicesController::class, 'storeCallback'])->name('services.callback');
 Route::get('/services/success', [\App\Http\Controllers\BusinessServicesController::class, 'success'])->name('services.success');
-Route::post('/services/{serviceRequest}/proof', [\App\Http\Controllers\BusinessServicesController::class, 'submitProof'])->name('services.payment-proof');
-Route::post('/services/{serviceRequest}/checkout', [\App\Http\Controllers\PaymentGatewayController::class, 'initiatePayment'])->name('payment.checkout');
-Route::post('/payment/callback/{gateway}', [\App\Http\Controllers\PaymentGatewayController::class, 'handleCallback'])->name('payment.callback');
+Route::post('/services/{serviceRequest}/proof', [\App\Http\Controllers\BusinessServicesController::class, 'submitProof'])
+    ->middleware('throttle:public-lookup')
+    ->name('services.payment-proof');
+Route::post('/services/{serviceRequest}/checkout', [\App\Http\Controllers\PaymentGatewayController::class, 'initiatePayment'])
+    ->middleware('throttle:public-lookup')
+    ->name('payment.checkout');
+Route::post('/payment/callback/{gateway}', [\App\Http\Controllers\PaymentGatewayController::class, 'handleCallback'])
+    ->where('gateway', 'jazzcash')
+    ->middleware('throttle:payment-webhook')
+    ->name('payment.callback');
 
 // Online ATL Status Checker (Non-persisted Model Verification)
-Route::post('/check-atl', [\App\Http\Controllers\AtlCheckerController::class, 'check'])->name('atl.check');
+Route::post('/check-atl', [\App\Http\Controllers\AtlCheckerController::class, 'check'])
+    ->middleware('throttle:public-lookup')
+    ->name('atl.check');
 
 // Public Track, FAQ & Contact Pages (Dynamic CMS with Safe Fallback)
-Route::get('/track', [\App\Http\Controllers\TrackController::class, 'index'])->name('track');
-Route::get('/track/search', [\App\Http\Controllers\TrackController::class, 'search'])->name('track.search');
+Route::get('/track', [\App\Http\Controllers\TrackController::class, 'index'])
+    ->middleware('throttle:public-lookup')
+    ->name('track');
+Route::get('/track/search', [\App\Http\Controllers\TrackController::class, 'search'])
+    ->middleware('throttle:public-lookup')
+    ->name('track.search');
 Route::get('/faq', function () {
     $faqs = collect();
     try {
@@ -68,9 +83,9 @@ Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'ind
 
 // 2. Authentication (Login & Self-Service Registration)
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-Route::post('/register', [AuthController::class, 'register']);
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // 3. Authenticated Workspace
@@ -117,6 +132,10 @@ Route::middleware('auth')->group(function () {
         Route::post('admin/corporate-orders/{serviceRequest}/mark-paid', [\App\Http\Controllers\BusinessServicesController::class, 'markPaid'])->name('services.mark-paid');
         Route::post('services/{serviceRequest}/mark-paid', [\App\Http\Controllers\BusinessServicesController::class, 'markPaid']);
         Route::delete('admin/corporate-orders/{serviceRequest}', [\App\Http\Controllers\Admin\CorporateOrderController::class, 'destroy'])->name('admin.orders.destroy');
+        Route::get('services/{serviceRequest}/proof-file', function (\App\Models\ServiceRequest $serviceRequest) {
+            abort_unless($serviceRequest->payment_proof_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($serviceRequest->payment_proof_path), 404);
+            return \Illuminate\Support\Facades\Storage::disk('local')->response($serviceRequest->payment_proof_path);
+        })->name('services.proof-file');
 
         Route::get('admin/call-requests', [\App\Http\Controllers\Admin\CallRequestController::class, 'index'])->name('admin.callbacks.index');
         Route::post('admin/call-requests/{callback}/status', [\App\Http\Controllers\Admin\CallRequestController::class, 'updateStatus'])->name('admin.callbacks.status');

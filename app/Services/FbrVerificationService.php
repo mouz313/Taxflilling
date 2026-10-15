@@ -8,55 +8,25 @@ use Illuminate\Support\Facades\Log;
 class FbrVerificationService
 {
     /**
-     * Verify CNIC on Active Taxpayer List (ATL) - Advisory & Local Depository Check
+     * Verify CNIC against Internal Client Registry
      */
     public function verifyAtl(string $cnic): array
     {
-        $cleanCnic = preg_replace('/[^0-9]/', '', $cnic);
-        if (strlen($cleanCnic) !== 13) {
-            return [
-                'success' => false,
-                'message' => 'Valid 13-digit Pakistani CNIC number darj karein (e.g. 42101-1234567-1)',
-            ];
+        $clean = preg_replace('/\D/', '', $cnic);
+        if (strlen($clean) !== 13) {
+            return ['success' => false, 'message' => 'Valid 13-digit CNIC darj karein.'];
         }
 
-        $formattedCnic = substr($cleanCnic, 0, 5) . '-' . substr($cleanCnic, 5, 7) . '-' . substr($cleanCnic, 12, 1);
-
-        // Try FBR public verification portal with timeout
-        $liveResult = null;
-        try {
-            $response = Http::timeout(3)
-                ->withHeaders(['User-Agent' => 'TaxFiler-Verification-Engine/2.0'])
-                ->get("https://e.fbr.gov.pk/esr/TaxpayerRegistration.aspx", [
-                    'cnic' => $cleanCnic
-                ]);
-            if ($response->successful() && str_contains($response->body(), 'Active')) {
-                $liveResult = 'Active';
-            }
-        } catch (\Throwable $e) {
-            Log::info("FBR Live verification fallback triggered for CNIC: {$formattedCnic}");
-        }
-
-        // Check local database for matched registered clients
-        $client = \App\Models\Client::where('cnic', $formattedCnic)
-            ->orWhere('cnic', $cleanCnic)
-            ->first();
-
-        $taxYear = 'Tax Year 2026';
-        $isActive = $liveResult === 'Active' || ($client && $client->status === 'active');
-        $surchargePaid = $isActive;
+        $client = \App\Models\Client::whereCnic($clean)->first();
 
         return [
-            'success' => true,
-            'cnic' => $formattedCnic,
-            'name' => $client?->name ?? ('Taxpayer (' . substr($formattedCnic, 0, 5) . '*****)'),
-            'status' => $isActive ? 'Active (Filer)' : 'Inactive / Unverified',
-            'is_active' => $isActive,
-            'tax_year' => $taxYear,
-            'surcharge_status' => $surchargePaid ? 'Surcharge Paid & Cleared ✓' : 'Pending Verification / Document Upload',
-            'filer_benefit' => $isActive ? 'Normal Withholding Tax Rates (No Non-Filer Penalty)' : 'Additional WHT Penalty Applicable until return filed',
-            'verification_date' => now()->format('d-M-Y H:i:s'),
-            'verified_by' => 'TaxFiler Internal Advisory Check',
+            'success'      => true,
+            'cnic'         => substr($clean, 0, 5) . '-*******-' . substr($clean, -1),
+            'name'         => $client?->name,
+            'is_active'    => null,
+            'status'       => 'Not verified with FBR',
+            'source'       => 'Manual check required on FBR ATL',
+            'checked_at'   => null,
         ];
     }
 
@@ -67,9 +37,13 @@ class FbrVerificationService
     {
         $clean = preg_replace('/[^0-9A-Za-z]/', '', $identifier);
         
-        $client = \App\Models\Client::where('cnic', 'like', "%{$clean}%")
-            ->orWhere('ntn', 'like', "%{$clean}%")
-            ->first();
+        $client = null;
+        if (strlen($clean) === 13) {
+            $client = \App\Models\Client::whereCnic($clean)->first();
+        }
+        if (! $client) {
+            $client = \App\Models\Client::where('ntn', $clean)->first();
+        }
 
         if (! $client) {
             return [
@@ -78,7 +52,7 @@ class FbrVerificationService
                 'legal_name' => 'Unverified / Not in Local Registry',
                 'registration_type' => (strlen($clean) === 7) ? 'Company / AOP' : 'Individual Taxpayer',
                 'ntn' => (strlen($clean) === 7) ? $clean : 'Not Assigned',
-                'cnic' => (strlen($clean) === 13) ? substr($clean, 0, 5) . '-' . substr($clean, 5, 7) . '-' . substr($clean, 12, 1) : 'Not Provided',
+                'cnic' => (strlen($clean) === 13) ? substr($clean, 0, 5) . '-*******-' . substr($clean, -1) : 'Not Provided',
                 'assigned_rto' => 'Requires Document Verification',
                 'principal_activity' => 'Please upload NTN certificate or previous return',
                 'registered_address' => 'Pending Client Input',
@@ -94,11 +68,11 @@ class FbrVerificationService
             'legal_name' => $client->name,
             'registration_type' => !empty($client->ntn) ? 'Registered Taxpayer' : 'Individual Taxpayer',
             'ntn' => $client->ntn ?? 'Pending Assignment',
-            'cnic' => $client->cnic ?? 'Linked to NTN',
+            'cnic' => $client->masked_cnic,
             'assigned_rto' => $client->assigned_rto ?? 'Regional Tax Office (Assigned)',
             'principal_activity' => 'Client Advisory Account',
             'registered_address' => $client->address ?? 'On File with Consultancy',
-            'operational_status' => $client->status === 'active' ? 'Active & In Order ✓' : 'Inactive / In Progress',
+            'operational_status' => 'Internal status: ' . ($client->status ?? 'unknown'),
             'registration_date' => $client->created_at?->format('d-M-Y') ?? now()->format('d-M-Y'),
             'verification_stamp' => 'TaxFiler Client Advisory Registry',
         ];
@@ -129,8 +103,8 @@ class FbrVerificationService
                 'formatted_amount' => 'PKR ' . number_format($matchedReturn->net_tax_payable_or_refundable, 0),
                 'tax_head' => 'Income Tax Return / Admit Tax',
                 'payment_date' => $matchedReturn->filed_at?->format('d-M-Y') ?? $matchedReturn->updated_at->format('d-M-Y'),
-                'clearing_bank' => 'National Bank of Pakistan (Recorded)',
-                'status' => 'Verified in Tax Return Record #' . $matchedReturn->id,
+                'clearing_bank' => null,
+                'status' => 'Found in internal records (not verified with FBR/bank)',
                 'channel' => 'e-Payment CPR',
                 'verification_code' => 'CPR-' . $matchedReturn->id,
             ];
@@ -144,8 +118,8 @@ class FbrVerificationService
                 'formatted_amount' => 'PKR ' . number_format($matchedService->fee_amount, 0),
                 'tax_head' => 'Corporate Service Fee / Challan',
                 'payment_date' => $matchedService->created_at->format('d-M-Y'),
-                'clearing_bank' => ucfirst($matchedService->payment_method ?? 'Bank'),
-                'status' => 'Verified in Service Request #' . $matchedService->tracking_number,
+                'clearing_bank' => null,
+                'status' => 'Found in internal records (not verified with FBR/bank)',
                 'channel' => 'Service Payment Reference',
                 'verification_code' => 'SR-' . $matchedService->id,
             ];
@@ -154,7 +128,7 @@ class FbrVerificationService
         return [
             'success' => false,
             'cpr_no' => $cleanCpr,
-            'message' => 'Challan / CPR number system records mein daryaft nahi hua. Barah-e-karam CPR payment receipt copy upload karein.',
+            'message' => 'Challan / CPR number system records mein daryaft nahi hua.',
             'status' => 'Unverified / Record Not Found',
         ];
     }

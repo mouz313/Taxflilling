@@ -6,6 +6,8 @@ use App\Models\ServiceRequest;
 use App\Services\PaymentGatewayService;
 use Illuminate\Http\Request;
 
+use Illuminate\Support\Facades\DB;
+
 class PaymentGatewayController extends Controller
 {
     protected PaymentGatewayService $paymentService;
@@ -21,16 +23,19 @@ class PaymentGatewayController extends Controller
     public function initiatePayment(Request $request, ServiceRequest $serviceRequest)
     {
         $validated = $request->validate([
-            'gateway' => ['required', 'in:1bill,jazzcash,easypaisa,bank_transfer'],
-            'mobile_number' => ['nullable', 'string'],
+            'tracking_number' => ['required', 'string'],
+            'gateway'         => ['required', 'in:jazzcash,bank_transfer'],   // jo gateways verified hain sirf wohi
+            'mobile_number'   => ['nullable', 'string'],
         ]);
+
+        // ID guess karne se tracking number nahi milna chahiye
+        abort_unless(hash_equals($serviceRequest->tracking_number, strtoupper($validated['tracking_number'])), 404);
+        abort_if($serviceRequest->payment_status === 'paid', 409, 'Order pehle se paid hai.');
 
         $gateway = $validated['gateway'];
 
         $details = match ($gateway) {
-            '1bill' => $this->paymentService->generate1BillPsid($serviceRequest),
             'jazzcash' => $this->paymentService->createJazzCashCheckout($serviceRequest, $validated['mobile_number'] ?? ''),
-            'easypaisa' => $this->paymentService->createEasyPaisaCheckout($serviceRequest, $validated['mobile_number'] ?? ''),
             'bank_transfer' => $this->paymentService->getBankTransferDetails($serviceRequest),
         };
 
@@ -49,64 +54,59 @@ class PaymentGatewayController extends Controller
             abort(405, 'Only POST webhooks are accepted.');
         }
 
-        $billReference = $request->input('pp_BillReference') 
-            ?? $request->input('order_id') 
-            ?? $request->input('tracking_number');
-
-        if (! $billReference) {
-            return response()->json(['error' => 'Missing reference identifier.'], 400);
+        // EasyPaisa / 1Bill: apna verified handler banne tak band
+        if ($gateway !== 'jazzcash') {
+            return response()->json(['error' => 'Gateway callback not enabled.'], 501);
         }
 
-        $serviceRequest = ServiceRequest::where('tracking_number', $billReference)->first();
-        if (! $serviceRequest) {
+        // 1. Pehle signature (order lookup se pehle, taake info leak na ho)
+        if (! $this->paymentService->verifyJazzCashHash($request->all())) {
+            return response()->json(['error' => 'Invalid payment signature hash.'], 403);
+        }
+
+        $billReference = (string) $request->input('pp_BillReference');
+        $order = ServiceRequest::where('tracking_number', $billReference)->first();
+        if (! $order) {
             return response()->json(['error' => 'Order not found.'], 404);
         }
 
-        // Idempotency: if already paid, return early
-        if ($serviceRequest->payment_status === 'paid') {
-            return response()->json(['status' => 'already_processed', 'message' => 'Order is already marked as paid.']);
+        // 2. Gateway ne success kaha?
+        if ($request->input('pp_ResponseCode') !== '000') {
+            return response()->json(['error' => 'Transaction declined by gateway.'], 400);
         }
 
-        if ($gateway === 'jazzcash') {
-            // 1. Verify HMAC Hash
-            if (! $this->paymentService->verifyJazzCashHash($request->all())) {
-                return response()->json(['error' => 'Invalid payment signature hash.'], 403);
-            }
-
-            // 2. Verify Success Response Code
-            $ppResponseCode = $request->input('pp_ResponseCode');
-            if ($ppResponseCode !== '000') {
-                return response()->json(['error' => 'Transaction declined by gateway: ' . $ppResponseCode], 400);
-            }
-
-            // 3. Verify Amount (JazzCash sends pp_Amount in paisas)
-            $receivedPaisa = (int) $request->input('pp_Amount');
-            $expectedPaisa = (int) round($serviceRequest->fee_amount * 100);
-            if ($receivedPaisa > 0 && $receivedPaisa < $expectedPaisa) {
-                return response()->json(['error' => 'Paid amount does not match order fee.'], 422);
-            }
-
-            $txnRefNo = $request->input('pp_TxnRefNo') ?? ('JC-' . time());
-        } else {
-            // General gateway validation
-            $txnRefNo = $request->input('transaction_id') ?? $request->input('reference_no') ?? ('GW-' . time());
+        // 3. Amount exact match (pp_Amount lazmi, paisa mein)
+        $received = (int) $request->input('pp_Amount');
+        $expected = (int) round($order->fee_amount * 100);
+        if ($received !== $expected) {
+            return response()->json(['error' => 'Paid amount does not match order fee.'], 422);
         }
 
-        $serviceRequest->update([
-            'payment_status' => 'paid',
-            'payment_method' => $gateway,
-            'payment_reference' => $txnRefNo,
-            'status' => $serviceRequest->status === 'submitted' ? 'in_review' : $serviceRequest->status,
-        ]);
+        $txnRef = (string) $request->input('pp_TxnRefNo');
+        if ($txnRef === '') {
+            return response()->json(['error' => 'Missing transaction reference.'], 400);
+        }
 
-        if ($request->wantsJson()) {
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Payment verified successfully.',
-                'reference' => $txnRefNo,
+        // 4. Idempotent, concurrent callbacks mein bhi ek hi baar update
+        $result = DB::transaction(function () use ($order, $txnRef) {
+            $locked = ServiceRequest::whereKey($order->id)->lockForUpdate()->first();
+
+            if ($locked->payment_status === 'paid') {
+                return 'already_processed';
+            }
+
+            $locked->update([
+                'payment_status'    => 'paid',
+                'payment_method'    => 'jazzcash',
+                'payment_reference' => $txnRef,
+                'status'            => $locked->status === 'submitted' ? 'in_review' : $locked->status,
             ]);
-        }
 
-        return redirect()->route('dashboard')->with('success', "Payment successfully verified via {$gateway}! Order #{$serviceRequest->tracking_number} is now In Review.");
+            return 'success';
+        });
+
+        return $request->wantsJson()
+            ? response()->json(['status' => $result, 'reference' => $txnRef])
+            : redirect()->route('dashboard')->with('success', 'Payment verify ho gayi.');
     }
 }

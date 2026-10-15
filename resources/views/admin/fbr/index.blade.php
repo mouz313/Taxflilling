@@ -46,14 +46,24 @@
         class="w-full space-y-4"
     >
         <!-- 1. AdminLTE Callout Banner -->
+        <div class="callout callout-warning bg-white border-warning mb-3">
+            <h5 class="text-sm font-bold text-[#856404] m-0 flex items-center gap-2">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                <span>Zaroori Notice / Internal Records Disclaimer</span>
+            </h5>
+            <p class="text-xs text-[#856404] mt-1 m-0 font-medium">
+                Yeh internal records ka check hai, FBR/IRIS ki tasdeeq nahi. FBR Active Taxpayer List (ATL) ki rasmi tasdeeq ke liye FBR ki official web portal ya SMS service istemal karein.
+            </p>
+        </div>
+
         <div class="callout callout-info flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white">
             <div>
                 <h5 class="text-sm font-bold text-[#117a8b] m-0 flex items-center gap-2">
                     <i class="fas fa-shield-alt"></i>
-                    <span>Federal Board of Revenue (FBR) IRIS 2.0 Live Public Verification Desk</span>
+                    <span>Federal Board of Revenue (FBR) IRIS Advisory &amp; Records Desk</span>
                 </h5>
                 <p class="text-xs text-[#6c757d] mt-1 m-0">
-                    Active Taxpayer List (ATL) status, NTN legal profile aur CPR tax challans ki electronic verification karein.
+                    Active Taxpayer List (ATL) advisory status, NTN legal profile aur CPR tax challans ki internal depository check karein.
                 </p>
             </div>
             <div>

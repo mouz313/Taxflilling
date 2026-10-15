@@ -105,7 +105,7 @@
                         <span class="ml-4 w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0" x-text="openFaq === {{ $faq->id }} ? '−' : '+'"></span>
                     </button>
                     <div x-show="openFaq === {{ $faq->id }}" x-collapse x-cloak class="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed space-y-2">
-                        {!! $faq->answer !!}
+                        {!! \Illuminate\Support\Str::markdown($faq->answer, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
                     </div>
                 </div>
             @empty

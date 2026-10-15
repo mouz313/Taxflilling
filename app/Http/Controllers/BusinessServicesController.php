@@ -256,27 +256,45 @@ class BusinessServicesController extends Controller
     public function submitProof(Request $request, ServiceRequest $serviceRequest)
     {
         $validated = $request->validate([
-            'payment_method' => ['required', 'string'],
+            'tracking_number'   => ['required', 'string'],
+            'phone_last4'       => ['required', 'digits:4'],
+            'payment_method'    => ['required', 'string', 'max:50'],
             'payment_reference' => ['nullable', 'string', 'max:255'],
-            'payment_proof' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'payment_proof'     => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'proof_file'        => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ]);
+
+        // Order ka malik hone ka saboot
+        $phone = preg_replace('/\D/', '', (string) $serviceRequest->applicant_phone);
+        abort_unless(
+            hash_equals($serviceRequest->tracking_number, strtoupper($validated['tracking_number']))
+                && hash_equals(substr($phone, -4), $validated['phone_last4']),
+            404
+        );
+
+        // Paid order ko dobara na chhedein
+        abort_if($serviceRequest->payment_status === 'paid', 409, 'Order pehle se paid hai.');
 
         $proofPath = $serviceRequest->payment_proof_path;
-        if ($request->hasFile('payment_proof') && $request->file('payment_proof')->isValid()) {
-            $proofPath = $request->file('payment_proof')->store('payment_proofs/' . date('Ym'), 'public');
+        $uploaded = $request->file('payment_proof') ?? $request->file('proof_file');
+        if ($uploaded && $uploaded->isValid()) {
+            // PRIVATE disk (public nahi)
+            $sourcePath = $uploaded->getRealPath() ?: $uploaded->getPathname();
+            $extension = $uploaded->guessExtension() ?: ($uploaded->getClientOriginalExtension() ?: 'bin');
+            $filename = \Illuminate\Support\Str::random(40) . '.' . $extension;
+            $proofPath = 'payment_proofs/' . date('Ym') . '/' . $filename;
+            \Illuminate\Support\Facades\Storage::disk('local')->put($proofPath, file_get_contents($sourcePath));
         }
 
-        $ref = $validated['payment_reference'] ?: ($serviceRequest->payment_reference ?: 'SLIP-' . strtoupper(Str::random(6)));
-
         $serviceRequest->update([
-            'payment_status' => 'pending_verification',
-            'payment_method' => $validated['payment_method'],
-            'payment_reference' => $ref,
-            'payment_proof_path' => $proofPath,
-            'status' => $serviceRequest->status === 'submitted' ? 'in_review' : $serviceRequest->status,
+            'payment_status'    => 'pending_verification',
+            'payment_method'    => $validated['payment_method'],
+            'payment_reference' => $validated['payment_reference'] ?: ($serviceRequest->payment_reference ?: 'SLIP-' . strtoupper(\Illuminate\Support\Str::random(6))),
+            'payment_proof_path'=> $proofPath,
+            'status'            => $serviceRequest->status === 'submitted' ? 'in_review' : $serviceRequest->status,
         ]);
 
-        return back()->with('success', "Payment receipt jama ho chuki hai. Hamari team verify kar ke order ko Paid mark kar degi.");
+        return back()->with('success', 'Payment receipt jama ho gayi. Team verify kar ke order ko Paid mark karegi.');
     }
 
     /**
@@ -339,39 +357,24 @@ class BusinessServicesController extends Controller
     }
 
     /**
-     * Public AJAX Live CNIC / FBR IRIS Status Verifier
+     * Public AJAX Live CNIC Format Validator (Zero PII leakage)
      */
     public function checkCnic(Request $request)
     {
-        $cnic = trim($request->input('cnic', ''));
-        $cleanCnic = preg_replace('/[^0-9]/', '', $cnic);
+        $clean = preg_replace('/\D/', '', (string) $request->input('cnic'));
 
-        if (strlen($cleanCnic) < 13) {
+        if (strlen($clean) !== 13) {
             return response()->json([
                 'success' => false,
                 'message' => 'Barah-e-karam 13-digit CNIC number darj karein.',
             ], 422);
         }
 
-        $fbrService = app(\App\Services\FbrVerificationService::class);
-        $atl = $fbrService->verifyAtl($cnic);
-        $profile = $fbrService->verifyNtn($cnic);
-
-        $client = \App\Models\Client::where('cnic', 'like', "%{$cleanCnic}%")->first();
-
+        // Naam, NTN, client exist karta hai ya nahi: kuch bhi public nahi dena
         return response()->json([
             'success' => true,
-            'cnic' => $atl['cnic'] ?? $cnic,
-            'is_active' => (bool) ($atl['is_active'] ?? false),
-            'status' => $atl['status'] ?? 'Unknown',
-            'tax_year' => $atl['tax_year'] ?? 'Tax Year 2026',
-            'legal_name' => $client?->name ?? ($profile['legal_name'] ?? null),
-            'ntn' => $client?->ntn ?? ($profile['ntn'] ?? null),
-            'surcharge_status' => $atl['surcharge_status'] ?? ($atl['is_active'] ? 'Surcharge Paid & Cleared ✓' : 'Surcharge Unpaid'),
-            'assigned_rto' => $profile['assigned_rto'] ?? 'Regional Tax Office (RTO)',
-            'principal_activity' => $profile['principal_activity'] ?? null,
-            'filer_benefit' => $atl['filer_benefit'] ?? null,
-            'exists_in_system' => (bool) $client,
+            'valid'   => true,
+            'message' => 'CNIC format durust hai. ATL / NTN ki tasdeeq ke liye hamari team se rabta karein.',
         ]);
     }
 

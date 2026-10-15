@@ -36,9 +36,9 @@ return [
     ],
 
     'jazzcash' => [
-        'merchant_id' => env('JAZZCASH_MERCHANT_ID', ''),
-        'password' => env('JAZZCASH_PASSWORD', ''),
-        'salt' => env('JAZZCASH_SALT', 'taxfiler_secure_salt'),
+        'merchant_id' => env('JAZZCASH_MERCHANT_ID'),
+        'password' => env('JAZZCASH_PASSWORD'),
+        'salt' => env('JAZZCASH_SALT'),
         'environment' => env('JAZZCASH_ENV', 'sandbox'),
     ],
 

@@ -40,13 +40,17 @@ class PaymentGatewayService
      */
     public function createJazzCashCheckout(ServiceRequest|TaxReturn $model, string $mobileNumber = ''): array
     {
+        $merchantId = config('services.jazzcash.merchant_id');
+        $password = config('services.jazzcash.password');
+        $integritySalt = config('services.jazzcash.salt');
+
+        if (empty($merchantId) || empty($password) || empty($integritySalt)) {
+            throw new \RuntimeException('JazzCash gateway credentials not configured in environment.');
+        }
+
         $amount = (float) ($model->fee_amount ?? $model->net_tax_payable_or_refundable ?? 2500);
         $txnRefNo = 'T' . date('YmdHis') . rand(10, 99);
         $amountInPaisa = (int) ($amount * 100);
-
-        $merchantId = config('services.jazzcash.merchant_id') ?: env('JAZZCASH_MERCHANT_ID', 'MC_SANDBOX');
-        $password = config('services.jazzcash.password') ?: env('JAZZCASH_PASSWORD', 'pass_sandbox');
-        $integritySalt = config('services.jazzcash.salt') ?: env('JAZZCASH_SALT', 'taxfiler_secure_salt');
 
         $postData = [
             'pp_Version' => '1.1',
@@ -95,14 +99,16 @@ class PaymentGatewayService
     public function verifyJazzCashHash(array $input): bool
     {
         $received = $input['pp_SecureHash'] ?? '';
-        if (empty($received)) {
+        $salt = config('services.jazzcash.salt');
+
+        // Fail closed: salt ya hash na ho to hamesha reject
+        if (empty($received) || empty($salt)) {
             return false;
         }
 
         unset($input['pp_SecureHash']);
         ksort($input);
 
-        $salt = config('services.jazzcash.salt') ?: env('JAZZCASH_SALT', 'taxfiler_secure_salt');
         $hashString = $salt;
         foreach ($input as $key => $val) {
             if ($val !== '' && str_starts_with($key, 'pp_')) {

@@ -56,7 +56,7 @@
             </div>
 
             <div class="prose prose-slate max-w-none text-slate-700 leading-relaxed text-sm space-y-4">
-                {!! nl2br($page->content) !!}
+                {!! \Illuminate\Support\Str::markdown($page->content ?? '', ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
             </div>
         </div>
     </main>

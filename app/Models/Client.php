@@ -116,6 +116,14 @@ class Client extends Model
     }
 
     /**
+     * Scope to find client by blind index CNIC hash
+     */
+    public function scopeWhereCnic(Builder $query, string $cnic): Builder
+    {
+        return $query->where('cnic_hash', self::generateCnicHash($cnic));
+    }
+
+    /**
      * Search scope across client fields
      */
     public function scopeSearch(Builder $query, ?string $term): Builder
