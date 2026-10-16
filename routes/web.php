@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CompanySettingsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\TaxReturnController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,6 +88,12 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:lo
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Password Reset Routes
+Route::get('/forgot-password', [PasswordResetController::class, 'showForgotPassword'])->name('password.request');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])->middleware('throttle:public-lookup')->name('password.email');
+Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetPassword'])->name('password.reset');
+Route::post('/reset-password', [PasswordResetController::class, 'resetPassword'])->middleware('throttle:public-lookup')->name('password.update');
 
 // 3. Authenticated Workspace
 Route::middleware('auth')->group(function () {

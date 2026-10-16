@@ -37,7 +37,7 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="block text-sm font-medium text-slate-700">Password</label>
-                        <a href="#" class="text-xs text-blue-600 hover:underline">Forgot?</a>
+                        <a href="{{ route('password.request') }}" class="text-xs text-blue-600 hover:underline">Forgot?</a>
                     </div>
                     <div class="relative">
                         <input
